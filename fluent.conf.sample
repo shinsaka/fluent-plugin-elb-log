@@ -1,0 +1,15 @@
+<source>
+  type elb_log
+  access_key_id     XXXXXXXXXXXXXXXXXXXX
+  secret_access_key xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+  s3_endpoint       s3.amazonaws.com
+  s3_bucketname     bucketname
+  s3_prefix         prefix
+  timestamp_file    elb_last_at.dat
+  refresh_interval  300
+</source>
+
+<match elb.access>
+  type stdout
+</match>
+
