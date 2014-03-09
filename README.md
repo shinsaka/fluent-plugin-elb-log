@@ -43,6 +43,9 @@
   type stdout
 </match>
 ```
+
+### json output example
+```
 {
     "account_id": "999999999999", 
     "backend": "192.168.30.127", 
