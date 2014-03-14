@@ -95,15 +95,15 @@ class Fluent::Elb_LogInput < Fluent::Input
         next unless line_match
 
         record = {
-          time: line_match[:time],
+          time: line_match[:time].gsub(/Z/, "+0000"),
           elb: line_match[:elb],
           client: line_match[:client],
           client_port: line_match[:client_port],
           backend: line_match[:backend],
           backend_port: line_match[:backend_port],
-          request_processing_time: line_match[:request_processing_time],
-          backend_processing_time: line_match[:backend_processing_time],
-          response_processing_time: line_match[:response_processing_time],
+          request_processing_time: line_match[:request_processing_time].to_f,
+          backend_processing_time: line_match[:backend_processing_time].to_f,
+          response_processing_time: line_match[:response_processing_time].to_f,
           elb_status_code: line_match[:elb_status_code],
           backend_status_code: line_match[:backend_status_code],
           received_bytes: line_match[:received_bytes],
