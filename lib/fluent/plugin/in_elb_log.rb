@@ -15,8 +15,12 @@ class Fluent::Elb_LogInput < Fluent::Input
   def configure(conf)
     super
     require 'aws-sdk'
-    raise Fluent::ConfigError.new("access_key_id is required") unless @access_key_id
-    raise Fluent::ConfigError.new("secret_access_key is required") unless @secret_access_key
+    require 'net/http'
+    iam = Net::HTTP.get_response('169.254.169.254','/latest/meta-data/iam/info')
+    if iam.msg != 'OK'
+      raise Fluent::ConfigError.new("access_key_id is required") unless @access_key_id
+      raise Fluent::ConfigError.new("secret_access_key is required") unless @secret_access_key
+    end
     raise Fluent::ConfigError.new("s3_bucketname is required") unless @s3_bucketname
     raise Fluent::ConfigError.new("timestamp_file is required") unless @timestamp_file
   end
@@ -45,10 +49,14 @@ class Fluent::Elb_LogInput < Fluent::Input
   private
 
   def init_s3bucket
-   @bucket = AWS::S3.new(
-      access_key_id: @access_key_id,
-      secret_access_key: @secret_access_key
-    ).buckets[@s3_bucketname]
+    options = {}
+    if @access_key_id && @secret_access_key
+      options[:access_key_id] = @access_key_id
+      options[:secret_access_key] = @secret_access_key
+    end
+    options[:s3_endpoint] = @s3_endpoint if @s3_endpoint
+
+    @bucket = AWS::S3.new(options).buckets[@s3_bucketname]
   end
 
   def run
@@ -58,7 +66,7 @@ class Fluent::Elb_LogInput < Fluent::Input
   def input
     $log.info "fluent-plugin-elb-log: input start"
    
-    #get timestamp last proc
+    # get timestamp last proc
     @timestamp_file.rewind
     timestamp = @timestamp_file.read.to_i
     timestamp = 0 unless timestamp
