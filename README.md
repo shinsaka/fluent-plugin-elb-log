@@ -16,13 +16,17 @@
 ```config
 <source>
   type elb_log
-  access_key_id     <access_key>
-  secret_access_key <secret_access_key>
+
+  # following attibutes are required
   s3_endpoint       <s3_endpoint>
   s3_bucketname     <bucketname>
   s3_prefix         <elb log's prefix>
   timestamp_file    <proc last file timestamp record filename>
   refresh_interval  <interval number by second>
+
+  # following attibutes are required if you don't use IAM Role
+  access_key_id     <access_key>
+  secret_access_key <secret_access_key>
 </source>
 ```
 
