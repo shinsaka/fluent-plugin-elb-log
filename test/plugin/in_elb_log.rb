@@ -74,4 +74,20 @@ class Elb_LogInputTest < Test::Unit::TestCase
     }
   end
 
+  def test_configure_outside_EC2
+    iam_info.to_timeout
+
+    assert_nothing_raised { driver = create_driver }
+    assert_raise_with_message(Fluent::ConfigError, 'access_key_id is required') {
+      conf = DEFAULT_CONFIG.clone
+      conf.delete(:access_key_id)
+      driver = create_driver(conf)
+    }
+    assert_raise_with_message(Fluent::ConfigError, 'secret_access_key is required') {
+      conf = DEFAULT_CONFIG.clone
+      conf.delete(:secret_access_key)
+      driver = create_driver(conf)
+    }
+  end
+
 end
