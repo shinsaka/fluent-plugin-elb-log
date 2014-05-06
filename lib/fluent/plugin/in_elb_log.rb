@@ -1,6 +1,6 @@
 class Fluent::Elb_LogInput < Fluent::Input
   Fluent::Plugin.register_input('elb_log', self)
-  
+
   LOGFILE_REGEXP = /^((?<prefix>.+?)\/|)AWSLogs\/(?<account_id>[0-9]{12})\/elasticloadbalancing\/(?<region>.+?)\/(?<logfile_date>[0-9]{4}\/[0-9]{2}\/[0-9]{2})\/[0-9]{12}_elasticloadbalancing_.+?_(?<logfile_elb_name>[^_]+)_(?<elb_timestamp>[0-9]{8}T[0-9]{4}Z)_(?<elb_ip_address>.+?)_(?<logfile_hash>.+)\.log$/
   ACCESSLOG_REGEXP = /^(?<time>.+?) (?<elb>.+?) (?<client>.+)\:(?<client_port>.+) (?<backend>.+)\:(?<backend_port>.+) (?<request_processing_time>.+?) (?<backend_processing_time>.+?) (?<response_processing_time>.+?) (?<elb_status_code>.+?) (?<backend_status_code>.+?) (?<received_bytes>.+?) (?<sent_bytes>.+?) \"(?<request_method>.+?) (?<request_uri>.+?) (?<request_protocol>.+?)\"$/
 
@@ -15,12 +15,14 @@ class Fluent::Elb_LogInput < Fluent::Input
   def configure(conf)
     super
     require 'aws-sdk'
-    require 'net/http'
-    iam = Net::HTTP.get_response('169.254.169.254','/latest/meta-data/iam/info')
-    if iam.msg != 'OK'
-      raise Fluent::ConfigError.new("access_key_id is required") unless @access_key_id
-      raise Fluent::ConfigError.new("secret_access_key is required") unless @secret_access_key
+
+    if @access_key_id.nil? and has_not_iam_role?
+      raise Fluent::ConfigError.new("access_key_id is required")
     end
+    if @secret_access_key.nil? and has_not_iam_role?
+      raise Fluent::ConfigError.new("secret_access_key is required")
+    end
+
     raise Fluent::ConfigError.new("s3_bucketname is required") unless @s3_bucketname
     raise Fluent::ConfigError.new("timestamp_file is required") unless @timestamp_file
   end
@@ -65,7 +67,7 @@ class Fluent::Elb_LogInput < Fluent::Input
 
   def input
     $log.info "fluent-plugin-elb-log: input start"
-   
+
     # get timestamp last proc
     @timestamp_file.rewind
     timestamp = @timestamp_file.read.to_i
@@ -120,7 +122,7 @@ class Fluent::Elb_LogInput < Fluent::Input
           request_uri: line_match[:request_uri],
           request_protocol: line_match[:request_protocol],
         }
-        
+
         Fluent::Engine.emit("elb.access", Fluent::Engine.now, record_common.merge(record))
       end
       # timestamp save
@@ -129,6 +131,26 @@ class Fluent::Elb_LogInput < Fluent::Input
       @timestamp_file.truncate(@timestamp_file.tell)
       $log.info "fluent-plugin-elb-log: timestamp save: " + obj.last_modified.to_s
     end
+  end
+
+  def has_iam_role?
+    return @has_iam_role unless @has_iam_role.nil?
+
+    require 'net/http'
+    @has_iam_role  = false
+    begin
+      http = Net::HTTP.new('169.254.169.254', '80')
+      http.open_timeout = 5 # sec
+      response = http.request(Net::HTTP::Get.new('/latest/meta-data/iam/info'))
+      @has_iam_role = true if response.code == '200'
+    rescue => e
+      $log.warn "fluent-plugin-elb-log: #{e.message}"
+    end
+    @has_iam_role
+  end
+
+  def has_not_iam_role?
+    !has_iam_role?
   end
 
   class TimerWatcher < Coolio::TimerWatcher
