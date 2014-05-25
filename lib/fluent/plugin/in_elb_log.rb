@@ -98,6 +98,7 @@ class Fluent::Elb_LogInput < Fluent::Input
         logfile_elb_name: matches[:logfile_elb_name],
         elb_ip_address: matches[:elb_ip_address],
         logfile_hash: matches[:logfile_hash],
+        elb_timestamp: matches[:elb_timestamp],
       }
 
       obj.read do |line|
