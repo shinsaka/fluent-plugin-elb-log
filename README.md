@@ -23,6 +23,7 @@
   s3_prefix         <elb log's prefix>
   timestamp_file    <proc last file timestamp record filename>
   refresh_interval  <interval number by second>
+  buf_file          <buffer file path>
 
   # following attibutes are required if you don't use IAM Role
   access_key_id     <access_key>
@@ -41,6 +42,7 @@
   s3_prefix         prefix
   timestamp_file    elb_last_at.dat
   refresh_interval  300
+  buf_file          /tmp/fluentd-elblog.tmpfile
 </source>
 
 <match **>

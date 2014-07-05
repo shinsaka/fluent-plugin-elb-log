@@ -11,6 +11,7 @@ class Fluent::Elb_LogInput < Fluent::Input
   config_param :s3_endpoint, :string, :default => 's3.amazon.com'
   config_param :timestamp_file, :string, :default => nil
   config_param :refresh_interval, :integer, :default => 300
+  config_param :buf_file, :string, :default => './fluentd_elb_log_buf_file'
 
   def configure(conf)
     super
@@ -26,6 +27,7 @@ class Fluent::Elb_LogInput < Fluent::Input
     raise Fluent::ConfigError.new("s3_bucketname is required") unless @s3_bucketname
     raise Fluent::ConfigError.new("timestamp_file is required") unless @timestamp_file
     raise Fluent::ConfigError.new("s3 bucket fetch error #{@s3_bucketname}") if init_s3bucket.nil?
+    FileUtils.touch(@buf_file)
   end
 
   def start
@@ -106,7 +108,27 @@ class Fluent::Elb_LogInput < Fluent::Input
         elb_timestamp: matches[:elb_timestamp],
       }
 
-      obj.read do |line|
+      # read an object from S3 to a file and write buffer file
+      File.open(@buf_file, File::WRONLY) do |file|
+        obj.read do |chunk|
+          file.write(chunk)
+        end
+      end
+
+      emit_lines_from_buffer_file record_common
+
+      # timestamp save
+      @timestamp_file.rewind
+      @timestamp_file.write(obj.last_modified.to_i)
+      @timestamp_file.truncate(@timestamp_file.tell)
+      $log.info "fluent-plugin-elb-log: timestamp save: " + obj.last_modified.to_s
+    end
+  end
+
+  def emit_lines_from_buffer_file(record_common)
+    # emit per line
+    File.open(@buf_file, File::RDONLY) do |file|
+      file.each_line do |line|
         line_match = ACCESSLOG_REGEXP.match(line)
         next unless line_match
 
@@ -131,11 +153,6 @@ class Fluent::Elb_LogInput < Fluent::Input
 
         Fluent::Engine.emit("elb.access", Fluent::Engine.now, record_common.merge(record))
       end
-      # timestamp save
-      @timestamp_file.rewind
-      @timestamp_file.write(obj.last_modified.to_i)
-      @timestamp_file.truncate(@timestamp_file.tell)
-      $log.info "fluent-plugin-elb-log: timestamp save: " + obj.last_modified.to_s
     end
   end
 
