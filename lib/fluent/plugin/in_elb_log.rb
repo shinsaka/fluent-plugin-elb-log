@@ -25,12 +25,11 @@ class Fluent::Elb_LogInput < Fluent::Input
 
     raise Fluent::ConfigError.new("s3_bucketname is required") unless @s3_bucketname
     raise Fluent::ConfigError.new("timestamp_file is required") unless @timestamp_file
+    raise Fluent::ConfigError.new("s3 bucket fetch error #{@s3_bucketname}") if init_s3bucket.nil?
   end
 
   def start
     super
-
-    init_s3bucket
 
     @timestamp_file = File.open(@timestamp_file, File::RDWR|File::CREAT)
     @timestamp_file.sync = true
@@ -58,7 +57,13 @@ class Fluent::Elb_LogInput < Fluent::Input
     end
     options[:s3_endpoint] = @s3_endpoint if @s3_endpoint
 
-    @bucket = AWS::S3.new(options).buckets[@s3_bucketname]
+    begin
+      @bucket = AWS::S3.new(options).buckets[@s3_bucketname]
+      @bucket.objects.count
+    rescue => e
+      $log.warn "fluent-plugin-elb-log: s3 bucket fetch error: #{e.message}"
+      nil
+    end
   end
 
   def run
