@@ -99,13 +99,13 @@ class Fluent::Elb_LogInput < Fluent::Input
       matches = LOGFILE_REGEXP.match(obj.key)
       timestamp = matches[:elb_timestamp].to_i
       record_common = {
-        account_id: matches[:account_id],
-        region: matches[:region],
-        logfile_date: matches[:logfile_date],
-        logfile_elb_name: matches[:logfile_elb_name],
-        elb_ip_address: matches[:elb_ip_address],
-        logfile_hash: matches[:logfile_hash],
-        elb_timestamp: matches[:elb_timestamp],
+        "account_id" => matches[:account_id],
+        "region" => matches[:region],
+        "logfile_date" => matches[:logfile_date],
+        "logfile_elb_name" => matches[:logfile_elb_name],
+        "elb_ip_address" => matches[:elb_ip_address],
+        "logfile_hash" => matches[:logfile_hash],
+        "elb_timestamp" => matches[:elb_timestamp],
       }
 
       # read an object from S3 to a file and write buffer file
@@ -133,22 +133,22 @@ class Fluent::Elb_LogInput < Fluent::Input
         next unless line_match
 
         record = {
-          time: line_match[:time].gsub(/Z/, "+0000"),
-          elb: line_match[:elb],
-          client: line_match[:client],
-          client_port: line_match[:client_port],
-          backend: line_match[:backend],
-          backend_port: line_match[:backend_port],
-          request_processing_time: line_match[:request_processing_time].to_f,
-          backend_processing_time: line_match[:backend_processing_time].to_f,
-          response_processing_time: line_match[:response_processing_time].to_f,
-          elb_status_code: line_match[:elb_status_code],
-          backend_status_code: line_match[:backend_status_code],
-          received_bytes: line_match[:received_bytes].to_i,
-          sent_bytes: line_match[:sent_bytes].to_i,
-          request_method: line_match[:request_method],
-          request_uri: line_match[:request_uri],
-          request_protocol: line_match[:request_protocol],
+          "time" => line_match[:time].gsub(/Z/, "+0000"),
+          "elb" => line_match[:elb],
+          "client" => line_match[:client],
+          "client_port" => line_match[:client_port],
+          "backend" => line_match[:backend],
+          "backend_port" => line_match[:backend_port],
+          "request_processing_time" => line_match[:request_processing_time].to_f,
+          "backend_processing_time" => line_match[:backend_processing_time].to_f,
+          "response_processing_time" => line_match[:response_processing_time].to_f,
+          "elb_status_code" => line_match[:elb_status_code],
+          "backend_status_code" => line_match[:backend_status_code],
+          "received_bytes" => line_match[:received_bytes].to_i,
+          "sent_bytes" => line_match[:sent_bytes].to_i,
+          "request_method" => line_match[:request_method],
+          "request_uri" => line_match[:request_uri],
+          "request_protocol" => line_match[:request_protocol],
         }
 
         Fluent::Engine.emit("elb.access", Fluent::Engine.now, record_common.merge(record))
