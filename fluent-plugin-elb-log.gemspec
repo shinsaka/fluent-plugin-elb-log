@@ -4,7 +4,7 @@ $LOAD_PATH.unshift(lib) unless $LOAD_PATH.include?(lib)
 
 Gem::Specification.new do |spec|
   spec.name          = "fluent-plugin-elb-log"
-  spec.version       = "0.1.1"
+  spec.version       = "0.1.3"
   spec.authors       = ["shinsaka"]
   spec.email         = ["shinx1265@gmail.com"]
   spec.summary       = "Amazon ELB log input plugin"
@@ -17,8 +17,8 @@ Gem::Specification.new do |spec|
   spec.test_files    = spec.files.grep(%r{^(test|spec|features)/})
   spec.require_paths = ["lib"]
 
-  spec.add_runtime_dependency "fluentd"
-  spec.add_runtime_dependency "aws-sdk"
+  spec.add_dependency "fluentd"
+  spec.add_dependency "aws-sdk", "~> 1.38"
 
   spec.add_development_dependency "bundler", "~> 1.5"
   spec.add_development_dependency "rake"
