@@ -12,6 +12,7 @@ class Fluent::Elb_LogInput < Fluent::Input
   config_param :timestamp_file, :string, :default => nil
   config_param :refresh_interval, :integer, :default => 300
   config_param :buf_file, :string, :default => './fluentd_elb_log_buf_file'
+  config_param :proxy_uri, :string, :default => nil
 
   def configure(conf)
     super
@@ -58,6 +59,9 @@ class Fluent::Elb_LogInput < Fluent::Input
       options[:secret_access_key] = @secret_access_key
     end
     options[:s3_endpoint] = @s3_endpoint if @s3_endpoint
+    if @proxy_uri
+      options[:proxy_uri] = @proxy_uri
+    end
 
     begin
       @bucket = AWS::S3.new(options).buckets[@s3_bucketname]
