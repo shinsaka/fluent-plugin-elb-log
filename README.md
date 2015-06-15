@@ -11,6 +11,24 @@
 - settings see: [Elastic Load Balancing](http://docs.aws.amazon.com/ElasticLoadBalancing/latest/DeveloperGuide/enable-access-logs.html)
 - developer guide: [](http://docs.aws.amazon.com/ElasticLoadBalancing/latest/DeveloperGuide/access-log-collection.html)
 
+## Different from version 0.1.x
+- Using version 2 of the AWS SDK for Ruby.
+- add parameter
+ - region (required. see:http://docs.aws.amazon.com/general/latest/gr/rande.html#s3_region)
+ - tag (optional)
+- remove parameter
+ - s3_endpoint
+
+## When SSL certification error
+log:
+```
+SSL_connect returned=1 errno=0 state=SSLv3 read server certificate B: certificate verify failed
+```
+Do env setting follows:
+```
+SSL_CERT_FILE=/etc/ssl/certs/ca-bundle.crt (If you using amazon linux)
+```
+
 ## Configuration
 
 ```config
@@ -18,12 +36,13 @@
   type elb_log
 
   # following attibutes are required
-  s3_endpoint       <s3_endpoint>
+  region            <region name>
   s3_bucketname     <bucketname>
   s3_prefix         <elb log's prefix>
   timestamp_file    <proc last file timestamp record filename>
-  refresh_interval  <interval number by second>
   buf_file          <buffer file path>
+  refresh_interval  <interval number by second>
+  tag               <tag name(default: elb.access)>
 
   # following attibutes are required if you don't use IAM Role
   access_key_id     <access_key>
@@ -35,14 +54,15 @@
 ```config
 <source>
   type elb_log
+  region            us-east-1
+  s3_bucketname     my-elblog-bucket
+  s3_prefix         prodcution/web
+  timestamp_file    elb_last_at.dat
+  buf_file          /tmp/fluentd-elblog.tmpfile
+  refresh_interval  300
+  tag               elb.access
   access_key_id     XXXXXXXXXXXXXXXXXXXX
   secret_access_key xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
-  s3_endpoint       s3.amazonaws.com
-  s3_bucketname     bucketname
-  s3_prefix         prefix
-  timestamp_file    elb_last_at.dat
-  refresh_interval  300
-  buf_file          /tmp/fluentd-elblog.tmpfile
 </source>
 
 <match **>

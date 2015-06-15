@@ -2,13 +2,14 @@ class Fluent::Elb_LogInput < Fluent::Input
   Fluent::Plugin.register_input('elb_log', self)
 
   LOGFILE_REGEXP = /^((?<prefix>.+?)\/|)AWSLogs\/(?<account_id>[0-9]{12})\/elasticloadbalancing\/(?<region>.+?)\/(?<logfile_date>[0-9]{4}\/[0-9]{2}\/[0-9]{2})\/[0-9]{12}_elasticloadbalancing_.+?_(?<logfile_elb_name>[^_]+)_(?<elb_timestamp>[0-9]{8}T[0-9]{4}Z)_(?<elb_ip_address>.+?)_(?<logfile_hash>.+)\.log$/
-  ACCESSLOG_REGEXP = /^(?<time>\d{4}-\d{2}-\d{2}T\d{2}\:\d{2}\:\d{2}\.\d{6}Z) (?<elb>.+?) (?<client>.+)\:(?<client_port>.+) (?<backend>.+)\:(?<backend_port>.+) (?<request_processing_time>.+?) (?<backend_processing_time>.+?) (?<response_processing_time>.+?) (?<elb_status_code>.+?) (?<backend_status_code>.+?) (?<received_bytes>.+?) (?<sent_bytes>.+?) \"(?<request_method>.+?) (?<request_uri>.+?) (?<request_protocol>.+?)\"$/
+  ACCESSLOG_REGEXP = /^(?<time>\d{4}-\d{2}-\d{2}T\d{2}\:\d{2}\:\d{2}\.\d{6}Z) (?<elb>.+?) (?<client>.+?)\:(?<client_port>.+?) (?<backend>.+?)\:(?<backend_port>.+?) (?<request_processing_time>.+?) (?<backend_processing_time>.+?) (?<response_processing_time>.+?) (?<elb_status_code>.+?) (?<backend_status_code>.+?) (?<received_bytes>.+?) (?<sent_bytes>.+?) \"(?<request_method>.+?) (?<request_uri>.+?) (?<request_protocol>.+?)\" \"(?<user_agent>.+?)\" (?<option1>.+?) (?<option2>.+)(| (?<option3>.*))/
 
   config_param :access_key_id, :string, :default => nil
   config_param :secret_access_key, :string, :default => nil
+  config_param :region, :string, :default => nil
   config_param :s3_bucketname, :string, :default => nil
   config_param :s3_prefix, :string, :default => nil
-  config_param :s3_endpoint, :string, :default => 's3.amazon.com'
+  config_param :tag, :string, :default => 'elb.access'
   config_param :timestamp_file, :string, :default => nil
   config_param :refresh_interval, :integer, :default => 300
   config_param :buf_file, :string, :default => './fluentd_elb_log_buf_file'
@@ -18,24 +19,23 @@ class Fluent::Elb_LogInput < Fluent::Input
     super
     require 'aws-sdk'
 
-    if @access_key_id.nil? and has_not_iam_role?
-      raise Fluent::ConfigError.new("access_key_id is required")
+    raise Fluent::ConfigError.new("region is required") unless @region
+    if !has_iam_role?
+      raise Fluent::ConfigError.new("access_key_id is required") if @access_key_id.nil?
+      raise Fluent::ConfigError.new("secret_access_key is required") if @secret_access_key.nil?
     end
-    if @secret_access_key.nil? and has_not_iam_role?
-      raise Fluent::ConfigError.new("secret_access_key is required")
-    end
-
     raise Fluent::ConfigError.new("s3_bucketname is required") unless @s3_bucketname
     raise Fluent::ConfigError.new("timestamp_file is required") unless @timestamp_file
-    raise Fluent::ConfigError.new("s3 bucket fetch error #{@s3_bucketname}") if init_s3bucket.nil?
-    FileUtils.touch(@buf_file)
   end
 
   def start
     super
 
-    @timestamp_file = File.open(@timestamp_file, File::RDWR|File::CREAT)
-    @timestamp_file.sync = true
+    # files touch
+    File.open(@timestamp_file, File::RDWR|File::CREAT).close
+    File.open(@buf_file, File::RDWR|File::CREAT).close
+
+    raise StandardError.new("s3 bucket not found #{@s3_bucketname}") unless s3bucket_is_ok()
 
     @loop = Coolio::Loop.new
     timer_trigger = TimerWatcher.new(@refresh_interval, true, &method(:input))
@@ -47,28 +47,222 @@ class Fluent::Elb_LogInput < Fluent::Input
     super
     @loop.stop
     @thread.join
-    @timestamp_file.close
   end
 
   private
 
-  def init_s3bucket
-    options = {}
-    if @access_key_id && @secret_access_key
-      options[:access_key_id] = @access_key_id
-      options[:secret_access_key] = @secret_access_key
-    end
-    options[:s3_endpoint] = @s3_endpoint if @s3_endpoint
-    if @proxy_uri
-      options[:proxy_uri] = @proxy_uri
-    end
-
+  def has_iam_role?
     begin
-      @bucket = AWS::S3.new(options).buckets[@s3_bucketname]
-      @bucket.objects.count
+      ec2 = Aws::EC2::Client.new(region: @region)
+      !ec2.config.credentials.nil?
     rescue => e
-      $log.warn "fluent-plugin-elb-log: s3 bucket fetch error: #{e.message}"
-      nil
+      $log.warn "EC2 Client error occurred: #{e.message}"
+    end
+  end
+
+  def get_timestamp_file
+    begin
+      # get timestamp last proc
+      timestamp = 0
+      $log.debug "timestamp file #{@timestamp_file} read"
+      File.open(@timestamp_file, File::RDONLY) do |file|
+        timestamp = file.read.to_i
+      end
+      $log.debug "timestamp start at:" + Time.at(timestamp).to_s
+      return timestamp
+    rescue => e
+      $log.warn "timestamp file get and parse error occurred: #{e.message}"
+    end
+  end
+
+  def put_timestamp_file(timestamp)
+    begin
+      $log.debug "timestamp file #{@timestamp_file} write"
+      File.open(@timestamp_file, File::WRONLY|File::TRUNC) do |file|
+        file.puts timestamp.to_s
+      end
+    rescue => e
+      $log.warn "timestamp file get and parse error occurred: #{e.message}"
+    end
+  end
+
+  def s3_client
+    begin
+      options = {
+        :region => @region,
+      }
+      if @access_key_id && @secret_access_key
+        options[:access_key_id] = @access_key_id
+        options[:secret_access_key] = @secret_access_key
+      end
+      $log.debug "S3 client connect"
+      Aws::S3::Client.new(options)
+    rescue => e
+      $log.warn "S3 Client error occurred: #{e.message}"
+    end
+  end
+
+  def s3bucket_is_ok
+    begin
+      $log.debug "search bucket #{@s3_bucketname}"
+
+      s3_client.list_buckets.buckets.any? do |bucket|
+        bucket.name == @s3_bucketname
+      end
+    rescue => e
+      $log.warn "S3 Client error occurred: #{e.message}"
+    end
+  end
+
+  def input
+    $log.debug "start"
+
+    timestamp = get_timestamp_file()
+
+    object_keys = get_object_keys()
+    $log.debug "1:" + object_keys.class.to_s
+    object_keys = snip_old_object_key(object_keys, timestamp)
+    $log.debug "2:" + object_keys.class.to_s
+    object_keys = sort_object_key(object_keys)
+    $log.debug "3:" + object_keys.class.to_s
+
+    object_keys.each do |key, object_key|
+      elb_timestamp = Time.parse(object_key[:elb_timestamp]).to_i
+      record_common = {
+        "account_id" => object_key[:account_id],
+        "region" => object_key[:region],
+        "logfile_date" => object_key[:logfile_date],
+        "logfile_elb_name" => object_key[:logfile_elb_name],
+        "elb_ip_address" => object_key[:elb_ip_address],
+        "logfile_hash" => object_key[:logfile_hash],
+        "elb_timestamp" => object_key[:elb_timestamp],
+      }
+
+      $log.debug "object_get #{key}"
+      get_file_from_s3(key)
+      emit_lines_from_buffer_file(record_common)
+
+      put_timestamp_file(elb_timestamp)
+    end
+  end
+
+  def get_object_keys
+    begin
+      object_keys = {}
+
+      objects = s3_client.list_objects(
+        bucket: @s3_bucketname,
+        max_keys: 100,
+        prefix: @s3_prefix,
+      )
+  
+      objects.each do |object|
+        object.contents.each do |content|
+          matches = LOGFILE_REGEXP.match(content.key)
+          next unless matches
+
+          $log.debug content.key
+          object_keys[content.key] = {
+            prefix: matches[:prefix],
+            account_id: matches[:account_id],
+            region: matches[:region],
+            logfile_date: matches[:logfile_date],
+            logfile_elb_name: matches[:logfile_elb_name],
+            elb_timestamp: matches[:elb_timestamp],
+            elb_ip_address: matches[:elb_ip_address],
+            logfile_hash: matches[:logfile_hash],
+            elb_timestamp_unixtime: Time.parse(matches[:elb_timestamp]).to_i,
+          }
+        end
+      end
+      return object_keys
+    rescue => e
+      $log.warn "S3 Client error occurred: #{e.message}"
+    end
+  end
+
+  def snip_old_object_key(src_object_keys, timestamp)
+    begin
+      object_keys = {}
+      src_object_keys.each do |key, src_object_key|
+        next if src_object_key[:elb_timestamp_unixtime] <= timestamp
+        object_keys[key] = src_object_key
+      end
+      $log.debug "target object count: #{object_keys.count}"
+
+      return object_keys
+    rescue => e
+      $log.warn "error occurred: #{e.message}"
+    end
+  end
+
+  def sort_object_key(src_object_keys)
+  raise src_object_keys.inspect
+    begin
+
+#      src_object_keys.each do |a|
+#        $log.debug "a: #{a[:elb_timestamp_unixtime]}"
+#      end
+      #src_object_keys.sort do |a, b|
+      #  a[:elb_timestamp_unixtime] <=> b[:elb_timestamp_unixtime]
+      #end
+    rescue => e
+      $log.warn "error occurred: #{e.message}"
+    end
+  end
+
+  def get_file_from_s3(object_name)
+    begin
+      # read an object from S3 to a file and write buffer file
+      File.open(@buf_file, File::WRONLY) do |file|
+        s3_client.get_object(
+          bucket: @s3_bucketname,
+          key: object_name
+        ) do |chunk|
+          file.write(chunk)
+        end
+      end
+    rescue => e
+      $log.warn "error occurred: #{e.message}"
+    end
+  end
+
+  def emit_lines_from_buffer_file(record_common)
+    begin
+      # emit per line
+      File.open(@buf_file, File::RDONLY) do |file|
+        file.each_line do |line|
+          line_match = ACCESSLOG_REGEXP.match(line)
+          next unless line_match
+  
+          record = {
+            "time" => line_match[:time].gsub(/Z/, "+0000"),
+            "elb" => line_match[:elb],
+            "client" => line_match[:client],
+            "client_port" => line_match[:client_port],
+            "backend" => line_match[:backend],
+            "backend_port" => line_match[:backend_port],
+            "request_processing_time" => line_match[:request_processing_time].to_f,
+            "backend_processing_time" => line_match[:backend_processing_time].to_f,
+            "response_processing_time" => line_match[:response_processing_time].to_f,
+            "elb_status_code" => line_match[:elb_status_code],
+            "backend_status_code" => line_match[:backend_status_code],
+            "received_bytes" => line_match[:received_bytes].to_i,
+            "sent_bytes" => line_match[:sent_bytes].to_i,
+            "request_method" => line_match[:request_method],
+            "request_uri" => line_match[:request_uri],
+            "request_protocol" => line_match[:request_protocol],
+            "user_agent" => line_match[:user_agent],
+            "option1" => line_match[:option1],
+            "option2" => line_match[:option2],
+            "option3" => line_match[:option3],
+          }
+  
+          Fluent::Engine.emit(@tag, Fluent::Engine.now, record_common.merge(record))
+        end
+      end
+    rescue => e
+      $log.warn "error occurred: #{e.message}"
     end
   end
 
@@ -76,113 +270,10 @@ class Fluent::Elb_LogInput < Fluent::Input
     @loop.run
   end
 
-  def input
-    $log.info "fluent-plugin-elb-log: input start"
-
-    # get timestamp last proc
-    @timestamp_file.rewind
-    timestamp = @timestamp_file.read.to_i
-    timestamp = 0 unless timestamp
-    $log.info "fluent-plugin-elb-log: timestamp at start: " + Time.at(timestamp).to_s
-
-    log_objects = []
-    @bucket.objects.each do |obj|
-      next if obj.last_modified.to_i <= timestamp
-      matches = LOGFILE_REGEXP.match(obj.key)
-      next unless matches
-      next if !@s3_prefix.nil? && matches[:prefix] != @s3_prefix
-      log_objects.push obj
-    end
-
-    # sort by timestamp
-    log_objects.sort! do |a,b|
-      LOGFILE_REGEXP.match(a.key)[:elb_timestamp] <=> LOGFILE_REGEXP.match(b.key)[:elb_timestamp]
-    end
-
-    log_objects.each do |obj|
-      matches = LOGFILE_REGEXP.match(obj.key)
-      timestamp = matches[:elb_timestamp].to_i
-      record_common = {
-        "account_id" => matches[:account_id],
-        "region" => matches[:region],
-        "logfile_date" => matches[:logfile_date],
-        "logfile_elb_name" => matches[:logfile_elb_name],
-        "elb_ip_address" => matches[:elb_ip_address],
-        "logfile_hash" => matches[:logfile_hash],
-        "elb_timestamp" => matches[:elb_timestamp],
-      }
-
-      # read an object from S3 to a file and write buffer file
-      File.open(@buf_file, File::WRONLY) do |file|
-        obj.read do |chunk|
-          file.write(chunk)
-        end
-      end
-
-      emit_lines_from_buffer_file record_common
-
-      # timestamp save
-      @timestamp_file.rewind
-      @timestamp_file.write(obj.last_modified.to_i)
-      @timestamp_file.truncate(@timestamp_file.tell)
-      $log.info "fluent-plugin-elb-log: timestamp save: " + obj.last_modified.to_s
-    end
-  end
-
-  def emit_lines_from_buffer_file(record_common)
-    # emit per line
-    File.open(@buf_file, File::RDONLY) do |file|
-      file.each_line do |line|
-        line_match = ACCESSLOG_REGEXP.match(line)
-        next unless line_match
-
-        record = {
-          "time" => line_match[:time].gsub(/Z/, "+0000"),
-          "elb" => line_match[:elb],
-          "client" => line_match[:client],
-          "client_port" => line_match[:client_port],
-          "backend" => line_match[:backend],
-          "backend_port" => line_match[:backend_port],
-          "request_processing_time" => line_match[:request_processing_time].to_f,
-          "backend_processing_time" => line_match[:backend_processing_time].to_f,
-          "response_processing_time" => line_match[:response_processing_time].to_f,
-          "elb_status_code" => line_match[:elb_status_code],
-          "backend_status_code" => line_match[:backend_status_code],
-          "received_bytes" => line_match[:received_bytes].to_i,
-          "sent_bytes" => line_match[:sent_bytes].to_i,
-          "request_method" => line_match[:request_method],
-          "request_uri" => line_match[:request_uri],
-          "request_protocol" => line_match[:request_protocol],
-        }
-
-        Fluent::Engine.emit("elb.access", Fluent::Engine.now, record_common.merge(record))
-      end
-    end
-  end
-
-  def has_iam_role?
-    return @has_iam_role unless @has_iam_role.nil?
-
-    require 'net/http'
-    @has_iam_role  = false
-    begin
-      http = Net::HTTP.new('169.254.169.254', '80')
-      http.open_timeout = 5 # sec
-      response = http.request(Net::HTTP::Get.new('/latest/meta-data/iam/info'))
-      @has_iam_role = true if response.code == '200'
-    rescue => e
-      $log.warn "fluent-plugin-elb-log: #{e.message}"
-    end
-    @has_iam_role
-  end
-
-  def has_not_iam_role?
-    !has_iam_role?
-  end
-
   class TimerWatcher < Coolio::TimerWatcher
     def initialize(interval, repeat, &callback)
       @callback = callback
+      on_timer # first call
       super(interval, repeat)
     end
 
