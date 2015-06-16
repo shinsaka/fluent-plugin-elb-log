@@ -18,6 +18,14 @@
  - tag (optional)
 - remove parameter
  - s3_endpoint
+- output data change
+ - add items
+     - region (AWS Region name)
+     - key (source S3 object name)
+     - prefix
+     - elb_timestamp_unixtime (converted to unix timestamp)
+     - user_agent
+     - option1, option2, option3
 
 ## When SSL certification error
 log:
@@ -73,28 +81,36 @@ SSL_CERT_FILE=/etc/ssl/certs/ca-bundle.crt (If you using amazon linux)
 ### json output example
 ```
 {
-    "account_id": "999999999999", 
-    "backend": "192.168.30.127", 
-    "backend_port": "80", 
-    "backend_processing_time": "0.000985", 
-    "backend_status_code": "200", 
-    "client": "118.20.x.x", 
-    "client_port": "46171", 
-    "elb": "fluent-test-elb", 
-    "elb_ip_address": "54.250.x.x", 
-    "elb_status_code": "200", 
-    "logfile_date": "2014/03/09", 
-    "logfile_elb_name": "fluent-test-elb", 
-    "logfile_hash": "xyz123ab", 
-    "received_bytes": "0", 
-    "region": "ap-northeast-1", 
-    "request_method": "GET", 
-    "request_processing_time": "0.000072", 
-    "request_protocol": "HTTP/1.1", 
-    "request_uri": "http://logfile_elb_name-00000000.ap-northeast-1.elb.amazonaws.com:80/", 
-    "response_processing_time": "0.00007", 
-    "sent_bytes": "9", 
-    "time": "2014-03-09T04:10:33.785083Z"
+    "account_id":"123456789012",
+    "region":"ap-northeast-1",
+    "logfile_date":"2015/06/15",
+    "logfile_elb_name":"my-elb-name",
+    "elb_ip_address":"52.0.0.0",
+    "logfile_hash":"12squv5w",
+    "elb_timestamp":"20150615T0400Z",
+    "key":"TEST/AWSLogs/123456789012/elasticloadbalancing/ap-northeast-1/2015/06/15/123456789012_elasticloadbalancing_ap-northeast-1_my-elb-name_20150615T0400Z_52.68.215.138_69squv5w.log",
+    "prefix":"TEST",
+    "elb_timestamp_unixtime":1434340800,
+    "time":"2015-06-15T03:47:12.728427+0000",
+    "elb":"my-elb-name",
+    "client":"54.1.1.1",
+    "client_port":"43759",
+    "backend":"10.0.0.1",
+    "backend_port":"80",
+    "request_processing_time":4.0e-05,
+    "backend_processing_time":0.105048,
+    "response_processing_time":2.4e-05,
+    "elb_status_code":"200",
+    "backend_status_code":"200",
+    "received_bytes":0,
+    "sent_bytes":4622,
+    "request_method":"GET",
+    "request_uri":"https://my-elb-test.example.com/",
+    "request_protocol":"HTTP/1.1",
+    "user_agent":"Mozilla/5.0 (compatible; MSIE 10.0; Windows NT 6.1; Trident/6.0)",
+    "option1":"DHE-RSA-AES128-SHA",
+    "option2":"TLSv1.2",
+    "option3":null
 }
 ```
 
