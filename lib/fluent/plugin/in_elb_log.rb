@@ -2,7 +2,7 @@ class Fluent::Elb_LogInput < Fluent::Input
   Fluent::Plugin.register_input('elb_log', self)
 
   LOGFILE_REGEXP = /^((?<prefix>.+?)\/|)AWSLogs\/(?<account_id>[0-9]{12})\/elasticloadbalancing\/(?<region>.+?)\/(?<logfile_date>[0-9]{4}\/[0-9]{2}\/[0-9]{2})\/[0-9]{12}_elasticloadbalancing_.+?_(?<logfile_elb_name>[^_]+)_(?<elb_timestamp>[0-9]{8}T[0-9]{4}Z)_(?<elb_ip_address>.+?)_(?<logfile_hash>.+)\.log$/
-  ACCESSLOG_REGEXP = /^(?<time>\d{4}-\d{2}-\d{2}T\d{2}\:\d{2}\:\d{2}\.\d{6}Z) (?<elb>.+?) (?<client>.+?)\:(?<client_port>.+?) (?<backend>.+?)\:(?<backend_port>.+?) (?<request_processing_time>.+?) (?<backend_processing_time>.+?) (?<response_processing_time>.+?) (?<elb_status_code>.+?) (?<backend_status_code>.+?) (?<received_bytes>.+?) (?<sent_bytes>.+?) \"(?<request_method>.+?) (?<request_uri>.+?) (?<request_protocol>.+?)\" \"(?<user_agent>.+?)\" (?<option1>.+?) (?<option2>.+)(| (?<option3>.*))/
+  ACCESSLOG_REGEXP = /^(?<time>\d{4}-\d{2}-\d{2}T\d{2}\:\d{2}\:\d{2}\.\d{6}Z) (?<elb>.+?) (?<client>.+?)\:(?<client_port>.+?) (?<backend>.+?)\:(?<backend_port>.+?) (?<request_processing_time>.+?) (?<backend_processing_time>.+?) (?<response_processing_time>.+?) (?<elb_status_code>.+?) (?<backend_status_code>.+?) (?<received_bytes>.+?) (?<sent_bytes>.+?) \"(?<request_method>.+?) (?<request_uri>.+?) (?<request_protocol>.+?)\" \"(?<user_agent>.*?)\" (?<option1>.+?) (?<option2>.+)(| (?<option3>.*))/
 
   config_param :access_key_id, :string, :default => nil
   config_param :secret_access_key, :string, :default => nil
@@ -78,7 +78,7 @@ class Fluent::Elb_LogInput < Fluent::Input
   def put_timestamp_file(timestamp)
     begin
       $log.debug "timestamp file #{@timestamp_file} write"
-      File.open(@timestamp_file, File::WRONLY|File::TRUNC) do |file|
+      File.open(@timestamp_file, File::WRONLY|File::CREAT|File::TRUNC) do |file|
         file.puts timestamp.to_s
       end
     rescue => e
@@ -119,15 +119,12 @@ class Fluent::Elb_LogInput < Fluent::Input
 
     timestamp = get_timestamp_file()
 
-    object_keys = get_object_keys()
-    $log.debug "1:" + object_keys.class.to_s
-    object_keys = snip_old_object_key(object_keys, timestamp)
-    $log.debug "2:" + object_keys.class.to_s
+    object_keys = get_object_keys(timestamp)
     object_keys = sort_object_key(object_keys)
-    $log.debug "3:" + object_keys.class.to_s
 
-    object_keys.each do |key, object_key|
-      elb_timestamp = Time.parse(object_key[:elb_timestamp]).to_i
+    $log.info "processing #{object_keys.count} object(s)."
+
+    object_keys.each do |object_key|
       record_common = {
         "account_id" => object_key[:account_id],
         "region" => object_key[:region],
@@ -136,19 +133,22 @@ class Fluent::Elb_LogInput < Fluent::Input
         "elb_ip_address" => object_key[:elb_ip_address],
         "logfile_hash" => object_key[:logfile_hash],
         "elb_timestamp" => object_key[:elb_timestamp],
+        "key" => object_key[:key],
+        "prefix" => object_key[:prefix],
+        "elb_timestamp_unixtime" => object_key[:elb_timestamp_unixtime],
       }
 
-      $log.debug "object_get #{key}"
-      get_file_from_s3(key)
+      get_file_from_s3(object_key[:key])
       emit_lines_from_buffer_file(record_common)
 
-      put_timestamp_file(elb_timestamp)
+      put_timestamp_file(object_key[:elb_timestamp_unixtime])
     end
   end
 
-  def get_object_keys
+  def get_object_keys(timestamp)
+    # get values from object file name
     begin
-      object_keys = {}
+      object_keys = []
 
       objects = s3_client.list_objects(
         bucket: @s3_bucketname,
@@ -161,8 +161,13 @@ class Fluent::Elb_LogInput < Fluent::Input
           matches = LOGFILE_REGEXP.match(content.key)
           next unless matches
 
+          # snip old items
+          elb_timestamp_unixtime = Time.parse(matches[:elb_timestamp]).to_i
+          next if elb_timestamp_unixtime <= timestamp
+
           $log.debug content.key
-          object_keys[content.key] = {
+          object_keys << {
+            key: content.key,
             prefix: matches[:prefix],
             account_id: matches[:account_id],
             region: matches[:region],
@@ -171,25 +176,10 @@ class Fluent::Elb_LogInput < Fluent::Input
             elb_timestamp: matches[:elb_timestamp],
             elb_ip_address: matches[:elb_ip_address],
             logfile_hash: matches[:logfile_hash],
-            elb_timestamp_unixtime: Time.parse(matches[:elb_timestamp]).to_i,
+            elb_timestamp_unixtime: elb_timestamp_unixtime,
           }
         end
       end
-      return object_keys
-    rescue => e
-      $log.warn "S3 Client error occurred: #{e.message}"
-    end
-  end
-
-  def snip_old_object_key(src_object_keys, timestamp)
-    begin
-      object_keys = {}
-      src_object_keys.each do |key, src_object_key|
-        next if src_object_key[:elb_timestamp_unixtime] <= timestamp
-        object_keys[key] = src_object_key
-      end
-      $log.debug "target object count: #{object_keys.count}"
-
       return object_keys
     rescue => e
       $log.warn "error occurred: #{e.message}"
@@ -197,15 +187,10 @@ class Fluent::Elb_LogInput < Fluent::Input
   end
 
   def sort_object_key(src_object_keys)
-  raise src_object_keys.inspect
     begin
-
-#      src_object_keys.each do |a|
-#        $log.debug "a: #{a[:elb_timestamp_unixtime]}"
-#      end
-      #src_object_keys.sort do |a, b|
-      #  a[:elb_timestamp_unixtime] <=> b[:elb_timestamp_unixtime]
-      #end
+      src_object_keys.sort do |a, b|
+        a[:elb_timestamp_unixtime] <=> b[:elb_timestamp_unixtime]
+      end
     rescue => e
       $log.warn "error occurred: #{e.message}"
     end
@@ -213,8 +198,10 @@ class Fluent::Elb_LogInput < Fluent::Input
 
   def get_file_from_s3(object_name)
     begin
+      $log.debug "getting object from s3 name is #{object_name}"
+
       # read an object from S3 to a file and write buffer file
-      File.open(@buf_file, File::WRONLY) do |file|
+      File.open(@buf_file, File::WRONLY|File::CREAT|File::TRUNC) do |file|
         s3_client.get_object(
           bucket: @s3_bucketname,
           key: object_name
@@ -233,7 +220,10 @@ class Fluent::Elb_LogInput < Fluent::Input
       File.open(@buf_file, File::RDONLY) do |file|
         file.each_line do |line|
           line_match = ACCESSLOG_REGEXP.match(line)
-          next unless line_match
+          unless line_match
+            $log.info "nomatch log found: #{line} in #{record_common['key']}"
+            next
+          end
   
           record = {
             "time" => line_match[:time].gsub(/Z/, "+0000"),
