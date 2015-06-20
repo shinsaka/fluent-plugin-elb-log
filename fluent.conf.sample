@@ -1,12 +1,14 @@
 <source>
   type elb_log
+  region            us-east-1
+  s3_bucketname     my-elblog-bucket
+  s3_prefix         prodcution/web
+  timestamp_file    /tmp/elb_last_at.dat
+  buf_file          /tmp/fluentd-elblog.tmpfile
+  refresh_interval  300
+  tag               elb.access
   access_key_id     XXXXXXXXXXXXXXXXXXXX
   secret_access_key xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
-  s3_endpoint       s3.amazonaws.com
-  s3_bucketname     bucketname
-  s3_prefix         prefix
-  timestamp_file    elb_last_at.dat
-  refresh_interval  300
 </source>
 
 <match elb.access>

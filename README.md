@@ -65,7 +65,7 @@ SSL_CERT_FILE=/etc/ssl/certs/ca-bundle.crt (If you using amazon linux)
   region            us-east-1
   s3_bucketname     my-elblog-bucket
   s3_prefix         prodcution/web
-  timestamp_file    elb_last_at.dat
+  timestamp_file    /tmp/elb_last_at.dat
   buf_file          /tmp/fluentd-elblog.tmpfile
   refresh_interval  300
   tag               elb.access
