@@ -2,7 +2,7 @@ class Fluent::Elb_LogInput < Fluent::Input
   Fluent::Plugin.register_input('elb_log', self)
 
   LOGFILE_REGEXP = /^((?<prefix>.+?)\/|)AWSLogs\/(?<account_id>[0-9]{12})\/elasticloadbalancing\/(?<region>.+?)\/(?<logfile_date>[0-9]{4}\/[0-9]{2}\/[0-9]{2})\/[0-9]{12}_elasticloadbalancing_.+?_(?<logfile_elb_name>[^_]+)_(?<elb_timestamp>[0-9]{8}T[0-9]{4}Z)_(?<elb_ip_address>.+?)_(?<logfile_hash>.+)\.log$/
-  ACCESSLOG_REGEXP = /^(?<time>\d{4}-\d{2}-\d{2}T\d{2}\:\d{2}\:\d{2}\.\d{6}Z) (?<elb>.+?) (?<client>.+?)\:(?<client_port>.+?) (?<backend>.+?)(\:(?<backend_port>.+?))? (?<request_processing_time>.+?) (?<backend_processing_time>.+?) (?<response_processing_time>.+?) (?<elb_status_code>.+?) (?<backend_status_code>.+?) (?<received_bytes>.+?) (?<sent_bytes>.+?) \"(?<request_method>.+?) (?<request_uri>.+?) (?<request_protocol>.+?)\"( \"(?<user_agent>.*?)\" (?<option1>.+?) (?<option2>.+)(| (?<option3>.*)))?/
+  ACCESSLOG_REGEXP = /^(?<time>\d{4}-\d{2}-\d{2}T\d{2}\:\d{2}\:\d{2}\.\d{6}Z) (?<elb>.+?) (?<client_ip_port>.+?) (?<backend>.+?)(\:(?<backend_port>.+?))? (?<request_processing_time>.+?) (?<backend_processing_time>.+?) (?<response_processing_time>.+?) (?<elb_status_code>.+?) (?<backend_status_code>.+?) (?<received_bytes>.+?) (?<sent_bytes>.+?) \"(?<request_method>.+?) (?<request_uri>.+?) (?<request_protocol>.+?)\"( \"(?<user_agent>.*?)\" (?<option1>.+?) (?<option2>.+)(| (?<option3>.*)))?/
 
   config_param :access_key_id, :string, :default => nil
   config_param :secret_access_key, :string, :default => nil
@@ -224,12 +224,18 @@ class Fluent::Elb_LogInput < Fluent::Input
             $log.info "nomatch log found: #{line} in #{record_common['key']}"
             next
           end
+          
+          client_ip_port = line_match[:client_ip_port]
+          ip_port_separation = client_ip_port.rindex(":")
+          len = client_ip_port.length
+          client_ip = client_ip_port[0,ip_port_separation]
+          client_port = client_ip_port[ip_port_separation+1,len]
   
           record = {
             "time" => line_match[:time].gsub(/Z/, "+0000"),
             "elb" => line_match[:elb],
-            "client" => line_match[:client],
-            "client_port" => line_match[:client_port],
+            "client" => client_ip,
+            "client_port" => client_port,
             "backend" => line_match[:backend],
             "backend_port" => line_match[:backend_port],
             "request_processing_time" => line_match[:request_processing_time].to_f,
