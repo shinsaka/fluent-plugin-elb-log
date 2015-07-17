@@ -108,8 +108,8 @@ SSL_CERT_FILE=/etc/ssl/certs/ca-bundle.crt (If you using amazon linux)
     "request_uri":"https://my-elb-test.example.com/",
     "request_protocol":"HTTP/1.1",
     "user_agent":"Mozilla/5.0 (compatible; MSIE 10.0; Windows NT 6.1; Trident/6.0)",
-    "option1":"DHE-RSA-AES128-SHA",
-    "option2":"TLSv1.2",
+    "ssl_cipher":"DHE-RSA-AES128-SHA",
+    "ssl_protocol":"TLSv1.2",
     "option3":null
 }
 ```
