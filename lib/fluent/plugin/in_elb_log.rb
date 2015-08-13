@@ -9,8 +9,8 @@ class Fluent::Elb_LogInput < Fluent::Input
     define_method("router") { Fluent::Engine }
   end
 
-  config_param :access_key_id, :string, :default => nil
-  config_param :secret_access_key, :string, :default => nil
+  config_param :access_key_id, :string, :default => nil, :secret => true
+  config_param :secret_access_key, :string, :default => nil, :secret => true
   config_param :region, :string, :default => nil
   config_param :s3_bucketname, :string, :default => nil
   config_param :s3_prefix, :string, :default => nil
