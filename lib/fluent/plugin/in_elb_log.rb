@@ -247,8 +247,8 @@ class Fluent::Elb_LogInput < Fluent::Input
             "ssl_protocol" => line_match[:ssl_protocol],
             "option3" => line_match[:option3],
           }
-  
-          Fluent::Engine.emit(@tag, Fluent::Engine.now, record_common.merge(record))
+
+          router.emit(@tag, Fluent::Engine.now, record_common.merge(record))
         end
       end
     rescue => e
