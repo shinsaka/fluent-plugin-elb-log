@@ -100,6 +100,9 @@ class Fluent::Elb_LogInput < Fluent::Input
         options[:access_key_id] = @access_key_id
         options[:secret_access_key] = @secret_access_key
       end
+      if @http_proxy
+        options[:http_proxy] = @http_proxy
+      end
       $log.debug "S3 client connect"
       Aws::S3::Client.new(options)
     rescue => e
