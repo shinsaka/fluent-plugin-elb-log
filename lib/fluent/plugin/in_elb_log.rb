@@ -18,7 +18,7 @@ class Fluent::Elb_LogInput < Fluent::Input
   config_param :timestamp_file, :string, :default => nil
   config_param :refresh_interval, :integer, :default => 300
   config_param :buf_file, :string, :default => './fluentd_elb_log_buf_file'
-  config_param :proxy_uri, :string, :default => nil
+  config_param :http_proxy, :string, :default => nil
 
   def configure(conf)
     super
