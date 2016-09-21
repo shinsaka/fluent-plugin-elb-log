@@ -19,6 +19,7 @@ class Fluent::Elb_LogInput < Fluent::Input
   config_param :refresh_interval, :integer, :default => 300
   config_param :buf_file, :string, :default => './fluentd_elb_log_buf_file'
   config_param :http_proxy, :string, :default => nil
+  config_param :start_time, :string, :default => nil
 
   def configure(conf)
     super
@@ -66,12 +67,14 @@ class Fluent::Elb_LogInput < Fluent::Input
   end
 
   def get_timestamp_file
+    require 'time'
     begin
       # get timestamp last proc
-      timestamp = 0
+      start_time = @start_time ? Time.parse(@start_time).utc : Time.at(0)
+      timestamp = start_time.to_i
       $log.debug "timestamp file #{@timestamp_file} read"
       File.open(@timestamp_file, File::RDONLY) do |file|
-        timestamp = file.read.to_i
+        timestamp = file.read.to_i if file.size > 0
       end
       $log.debug "timestamp start at:" + Time.at(timestamp).to_s
       return timestamp
