@@ -4,6 +4,11 @@ class Fluent::Elb_LogInput < Fluent::Input
   LOGFILE_REGEXP = /^((?<prefix>.+?)\/|)AWSLogs\/(?<account_id>[0-9]{12})\/elasticloadbalancing\/(?<region>.+?)\/(?<logfile_date>[0-9]{4}\/[0-9]{2}\/[0-9]{2})\/[0-9]{12}_elasticloadbalancing_.+?_(?<logfile_elb_name>[^_]+)_(?<elb_timestamp>[0-9]{8}T[0-9]{4}Z)_(?<elb_ip_address>.+?)_(?<logfile_hash>.+)\.log$/
   ACCESSLOG_REGEXP = /^(?<time>\d{4}-\d{2}-\d{2}T\d{2}\:\d{2}\:\d{2}\.\d{6}Z) (?<elb>.+?) (?<client>[^ ]+)\:(?<client_port>.+?) (?<backend>.+?)(\:(?<backend_port>.+?))? (?<request_processing_time>.+?) (?<backend_processing_time>.+?) (?<response_processing_time>.+?) (?<elb_status_code>.+?) (?<backend_status_code>.+?) (?<received_bytes>.+?) (?<sent_bytes>.+?) \"(?<request_method>.+?) (?<request_uri>.+?) (?<request_protocol>.+?)\"( \"(?<user_agent>.*?)\" (?<ssl_cipher>.+?) (?<ssl_protocol>.+)(| (?<option3>.*)))?/
 
+  # To support log_level option implemented by Fluentd v0.10.43
+  unless method_defined?(:log)
+    define_method("log") { $log }
+  end
+
   # Define `router` method to support v0.10.57 or earlier
   unless method_defined?(:router)
     define_method("router") { Fluent::Engine }
@@ -62,7 +67,7 @@ class Fluent::Elb_LogInput < Fluent::Input
       ec2 = Aws::EC2::Client.new(region: @region)
       !ec2.config.credentials.nil?
     rescue => e
-      $log.warn "EC2 Client error occurred: #{e.message}"
+      log.warn "EC2 Client error occurred: #{e.message}"
     end
   end
 
@@ -72,25 +77,25 @@ class Fluent::Elb_LogInput < Fluent::Input
       # get timestamp last proc
       start_time = @start_time ? Time.parse(@start_time).utc : Time.at(0)
       timestamp = start_time.to_i
-      $log.debug "timestamp file #{@timestamp_file} read"
+      log.debug "timestamp file #{@timestamp_file} read"
       File.open(@timestamp_file, File::RDONLY) do |file|
         timestamp = file.read.to_i if file.size > 0
       end
-      $log.debug "timestamp start at:" + Time.at(timestamp).to_s
+      log.debug "timestamp start at:" + Time.at(timestamp).to_s
       return timestamp
     rescue => e
-      $log.warn "timestamp file get and parse error occurred: #{e.message}"
+      log.warn "timestamp file get and parse error occurred: #{e.message}"
     end
   end
 
   def put_timestamp_file(timestamp)
     begin
-      $log.debug "timestamp file #{@timestamp_file} write"
+      log.debug "timestamp file #{@timestamp_file} write"
       File.open(@timestamp_file, File::WRONLY|File::CREAT|File::TRUNC) do |file|
         file.puts timestamp.to_s
       end
     rescue => e
-      $log.warn "timestamp file get and parse error occurred: #{e.message}"
+      log.warn "timestamp file get and parse error occurred: #{e.message}"
     end
   end
 
@@ -106,34 +111,34 @@ class Fluent::Elb_LogInput < Fluent::Input
       if @http_proxy
         options[:http_proxy] = @http_proxy
       end
-      $log.debug "S3 client connect"
+      log.debug "S3 client connect"
       Aws::S3::Client.new(options)
     rescue => e
-      $log.warn "S3 Client error occurred: #{e.message}"
+      log.warn "S3 Client error occurred: #{e.message}"
     end
   end
 
   def s3bucket_is_ok
     begin
-      $log.debug "search bucket #{@s3_bucketname}"
+      log.debug "search bucket #{@s3_bucketname}"
 
       s3_client.list_buckets.buckets.any? do |bucket|
         bucket.name == @s3_bucketname
       end
     rescue => e
-      $log.warn "S3 Client error occurred: #{e.message}"
+      log.warn "S3 Client error occurred: #{e.message}"
     end
   end
 
   def input
-    $log.debug "start"
+    log.debug "start"
 
     timestamp = get_timestamp_file()
 
     object_keys = get_object_keys(timestamp)
     object_keys = sort_object_key(object_keys)
 
-    $log.info "processing #{object_keys.count} object(s)."
+    log.info "processing #{object_keys.count} object(s)."
 
     object_keys.each do |object_key|
       record_common = {
@@ -176,7 +181,7 @@ class Fluent::Elb_LogInput < Fluent::Input
           elb_timestamp_unixtime = Time.parse(matches[:elb_timestamp]).to_i
           next if elb_timestamp_unixtime <= timestamp
 
-          $log.debug content.key
+          log.debug content.key
           object_keys << {
             key: content.key,
             prefix: matches[:prefix],
@@ -193,7 +198,7 @@ class Fluent::Elb_LogInput < Fluent::Input
       end
       return object_keys
     rescue => e
-      $log.warn "error occurred: #{e.message}"
+      log.warn "error occurred: #{e.message}"
     end
   end
 
@@ -203,13 +208,13 @@ class Fluent::Elb_LogInput < Fluent::Input
         a[:elb_timestamp_unixtime] <=> b[:elb_timestamp_unixtime]
       end
     rescue => e
-      $log.warn "error occurred: #{e.message}"
+      log.warn "error occurred: #{e.message}"
     end
   end
 
   def get_file_from_s3(object_name)
     begin
-      $log.debug "getting object from s3 name is #{object_name}"
+      log.debug "getting object from s3 name is #{object_name}"
 
       # read an object from S3 to a file and write buffer file
       File.open(@buf_file, File::WRONLY|File::CREAT|File::TRUNC) do |file|
@@ -221,7 +226,7 @@ class Fluent::Elb_LogInput < Fluent::Input
         end
       end
     rescue => e
-      $log.warn "error occurred: #{e.message}"
+      log.warn "error occurred: #{e.message}"
     end
   end
 
@@ -232,7 +237,7 @@ class Fluent::Elb_LogInput < Fluent::Input
         file.each_line do |line|
           line_match = ACCESSLOG_REGEXP.match(line)
           unless line_match
-            $log.info "nomatch log found: #{line} in #{record_common['key']}"
+            log.info "nomatch log found: #{line} in #{record_common['key']}"
             next
           end
   
@@ -263,7 +268,7 @@ class Fluent::Elb_LogInput < Fluent::Input
         end
       end
     rescue => e
-      $log.warn "error occurred: #{e.message}"
+      log.warn "error occurred: #{e.message}"
     end
   end
 
