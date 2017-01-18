@@ -1,3 +1,5 @@
+require 'fluent/input'
+
 class Fluent::Elb_LogInput < Fluent::Input
   Fluent::Plugin.register_input('elb_log', self)
 
