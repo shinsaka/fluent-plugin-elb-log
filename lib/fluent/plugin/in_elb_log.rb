@@ -1,3 +1,5 @@
+require 'time'
+require 'aws-sdk'
 require 'fluent/input'
 
 class Fluent::Elb_LogInput < Fluent::Input
@@ -20,7 +22,6 @@ class Fluent::Elb_LogInput < Fluent::Input
 
   def configure(conf)
     super
-    require 'aws-sdk'
 
     raise Fluent::ConfigError.new("region is required") unless @region
     if !has_iam_role?
@@ -64,7 +65,6 @@ class Fluent::Elb_LogInput < Fluent::Input
   end
 
   def get_timestamp_file
-    require 'time'
     begin
       # get timestamp last proc
       start_time = @start_time ? Time.parse(@start_time).utc : Time.at(0)
