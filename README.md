@@ -3,6 +3,15 @@
 ## Overview
 - Amazon Web Services ELB log input plubin for fluentd
 
+## Requirements
+
+## Requirements
+
+| fluent-plugin-elb-log | fluentd    | ruby   |
+|-----------------------|------------|--------|
+| >= 0.3.0              | >= v0.14.0 | >= 2.1 |
+| < 0.3.0               | >= v0.12.0 | >= 1.9 |
+
 ## Installation
 
     $ fluentd-gem fluent-plugin-elb-log
