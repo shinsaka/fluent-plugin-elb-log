@@ -2,8 +2,10 @@ require 'time'
 require 'aws-sdk'
 require 'fluent/input'
 
-class Fluent::Elb_LogInput < Fluent::Input
+class Fluent::Plugin::Elb_LogInput < Fluent::Plugin::Input
   Fluent::Plugin.register_input('elb_log', self)
+
+  helpers :timer
 
   LOGFILE_REGEXP = /^((?<prefix>.+?)\/|)AWSLogs\/(?<account_id>[0-9]{12})\/elasticloadbalancing\/(?<region>.+?)\/(?<logfile_date>[0-9]{4}\/[0-9]{2}\/[0-9]{2})\/[0-9]{12}_elasticloadbalancing_.+?_(?<logfile_elb_name>[^_]+)_(?<elb_timestamp>[0-9]{8}T[0-9]{4}Z)_(?<elb_ip_address>.+?)_(?<logfile_hash>.+)\.log$/
   ACCESSLOG_REGEXP = /^(?<time>\d{4}-\d{2}-\d{2}T\d{2}\:\d{2}\:\d{2}\.\d{6}Z) (?<elb>.+?) (?<client>[^ ]+)\:(?<client_port>.+?) (?<backend>.+?)(\:(?<backend_port>.+?))? (?<request_processing_time>.+?) (?<backend_processing_time>.+?) (?<response_processing_time>.+?) (?<elb_status_code>.+?) (?<backend_status_code>.+?) (?<received_bytes>.+?) (?<sent_bytes>.+?) \"(?<request_method>.+?) (?<request_uri>.+?) (?<request_protocol>.+?)\"( \"(?<user_agent>.*?)\" (?<ssl_cipher>.+?) (?<ssl_protocol>.+)(| (?<option3>.*)))?/
@@ -40,16 +42,7 @@ class Fluent::Elb_LogInput < Fluent::Input
 
     raise StandardError.new("s3 bucket not found #{@s3_bucketname}") unless s3bucket_is_ok()
 
-    @loop = Coolio::Loop.new
-    timer_trigger = TimerWatcher.new(@refresh_interval, true, &method(:input))
-    timer_trigger.attach(@loop)
-    @thread = Thread.new(&method(:run))
-  end
-
-  def shutdown
-    super
-    @loop.stop
-    @thread.join
+    timer_execute(:in_elb_log, @refresh_interval, &method(:input))
   end
 
   private
@@ -260,22 +253,6 @@ class Fluent::Elb_LogInput < Fluent::Input
       end
     rescue => e
       log.warn "error occurred: #{e.message}"
-    end
-  end
-
-  def run
-    @loop.run
-  end
-
-  class TimerWatcher < Coolio::TimerWatcher
-    def initialize(interval, repeat, &callback)
-      @callback = callback
-      on_timer # first call
-      super(interval, repeat)
-    end
-
-    def on_timer
-      @callback.call
     end
   end
 end
