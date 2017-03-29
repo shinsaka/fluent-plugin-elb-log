@@ -16,17 +16,17 @@ class Fluent::Elb_LogInput < Fluent::Input
     define_method("router") { Fluent::Engine }
   end
 
-  config_param :access_key_id, :string, :default => nil, :secret => true
-  config_param :secret_access_key, :string, :default => nil, :secret => true
-  config_param :region, :string, :default => nil
-  config_param :s3_bucketname, :string, :default => nil
-  config_param :s3_prefix, :string, :default => nil
-  config_param :tag, :string, :default => 'elb.access'
-  config_param :timestamp_file, :string, :default => nil
-  config_param :refresh_interval, :integer, :default => 300
-  config_param :buf_file, :string, :default => './fluentd_elb_log_buf_file'
-  config_param :http_proxy, :string, :default => nil
-  config_param :start_time, :string, :default => nil
+  config_param :access_key_id, :string, default: nil, secret: true
+  config_param :secret_access_key, :string, default: nil, secret: true
+  config_param :region, :string, default: nil
+  config_param :s3_bucketname, :string, default: nil
+  config_param :s3_prefix, :string, default: nil
+  config_param :tag, :string, default: 'elb.access'
+  config_param :timestamp_file, :string, default: nil
+  config_param :refresh_interval, :integer, default: 300
+  config_param :buf_file, :string, default: './fluentd_elb_log_buf_file'
+  config_param :http_proxy, :string, default: nil
+  config_param :start_time, :string, default: nil
 
   def configure(conf)
     super
@@ -104,7 +104,7 @@ class Fluent::Elb_LogInput < Fluent::Input
   def s3_client
     begin
       options = {
-        :region => @region,
+        region: @region,
       }
       if @access_key_id && @secret_access_key
         options[:access_key_id] = @access_key_id

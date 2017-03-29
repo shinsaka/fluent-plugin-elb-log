@@ -7,13 +7,13 @@ class Elb_LogInputTest < Test::Unit::TestCase
   end
 
   DEFAULT_CONFIG = {
-    :access_key_id     => 'dummy_access_key_id',
-    :secret_access_key => 'dummy_secret_access_key',
-    :s3_endpoint       => 's3-ap-northeast-1.amazonaws.com',
-    :s3_bucketname     => 'bummy_bucket',
-    :s3_prefix         => 'test',
-    :timestamp_file    => 'elb_last_at.dat',
-    :refresh_interval  => 300
+    access_key_id: 'dummy_access_key_id',
+    secret_access_key: 'dummy_secret_access_key',
+    s3_endpoint: 's3-ap-northeast-1.amazonaws.com',
+    s3_bucketname: 'bummy_bucket',
+    s3_prefix: 'test',
+    timestamp_file: 'elb_last_at.dat',
+    refresh_interval: 300
   }
 
   def parse_config(conf = {})
@@ -29,11 +29,11 @@ class Elb_LogInputTest < Test::Unit::TestCase
   end
 
   def use_iam_role
-    iam_info.to_return(:status => [200, 'OK'])
+    iam_info.to_return(status: [200, 'OK'])
   end
 
   def not_use_iam_role
-    iam_info.to_return(:status => [404, 'Not Found'])
+    iam_info.to_return(status: [404, 'Not Found'])
   end
 
   def test_confiture_default
