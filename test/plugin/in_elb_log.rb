@@ -12,6 +12,7 @@ class Elb_LogInputTest < Test::Unit::TestCase
     s3_endpoint: 's3-ap-northeast-1.amazonaws.com',
     s3_bucketname: 'bummy_bucket',
     s3_prefix: 'test',
+    region: 'ap-northeast-1',
     timestamp_file: 'elb_last_at.dat',
     refresh_interval: 300
   }
@@ -21,19 +22,32 @@ class Elb_LogInputTest < Test::Unit::TestCase
   end
 
   def create_driver(conf = DEFAULT_CONFIG)
-    Fluent::Test::InputTestDriver.new(Fluent::Elb_LogInput).configure(parse_config conf)
+    Fluent::Test::Driver::Input.new(Fluent::Plugin::Elb_LogInput).configure(parse_config conf)
   end
 
-  def iam_info
-    stub_request(:get, "http://169.254.169.254/latest/meta-data/iam/info")
+  def iam_info_url
+    "http://169.254.169.254/latest/meta-data/iam/security-credentials/"
   end
 
   def use_iam_role
-    iam_info.to_return(status: [200, 'OK'])
+    stub_request(:get, iam_info_url)
+      .to_return(status: [200, 'OK'], body: "hostname")
+    stub_request(:get, "#{iam_info_url}hostname")
+      .to_return(status: [200, 'OK'],
+                 body: {
+                   "AccessKeyId" => "dummy",
+                   "SecretAccessKey" => "secret",
+                   "Token" => "token"
+                 }.to_json)
+  end
+
+  def iam_info_timeout
+    stub_request(:get, iam_info_url).to_timeout
   end
 
   def not_use_iam_role
-    iam_info.to_return(status: [404, 'Not Found'])
+    stub_request(:get, iam_info_url)
+      .to_return(status: [404, 'Not Found'])
   end
 
   def test_confiture_default
@@ -81,7 +95,7 @@ class Elb_LogInputTest < Test::Unit::TestCase
   end
 
   def test_configure_outside_EC2
-    iam_info.to_timeout
+    iam_info_timeout
 
     assert_nothing_raised { driver = create_driver }
     exception = assert_raise(Fluent::ConfigError) {
