@@ -10,7 +10,7 @@ class Fluent::Elb_LogInput < Fluent::Input
 
   config_param :access_key_id, :string, default: nil, secret: true
   config_param :secret_access_key, :string, default: nil, secret: true
-  config_param :region, :string, default: nil
+  config_param :region, :string
   config_param :s3_bucketname, :string, default: nil
   config_param :s3_prefix, :string, default: nil
   config_param :tag, :string, default: 'elb.access'
@@ -23,7 +23,6 @@ class Fluent::Elb_LogInput < Fluent::Input
   def configure(conf)
     super
 
-    raise Fluent::ConfigError.new("region is required") unless @region
     if !has_iam_role?
       raise Fluent::ConfigError.new("access_key_id is required") if @access_key_id.nil?
       raise Fluent::ConfigError.new("secret_access_key is required") if @secret_access_key.nil?
