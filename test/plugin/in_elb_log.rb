@@ -52,19 +52,19 @@ class Elb_LogInputTest < Test::Unit::TestCase
 
   def test_confiture_default
     use_iam_role
-    assert_nothing_raised { driver = create_driver }
+    assert_nothing_raised { create_driver }
 
     exception = assert_raise(Fluent::ConfigError) {
       conf = DEFAULT_CONFIG.clone
       conf.delete(:s3_bucketname)
-      driver = create_driver(conf)
+      create_driver(conf)
     }
     assert_equal('s3_bucketname is required', exception.message)
 
     exception = assert_raise(Fluent::ConfigError) {
       conf = DEFAULT_CONFIG.clone
       conf.delete(:timestamp_file)
-      driver = create_driver(conf)
+      create_driver(conf)
     }
     assert_equal('timestamp_file is required', exception.message)
   end
@@ -74,7 +74,7 @@ class Elb_LogInputTest < Test::Unit::TestCase
     conf = DEFAULT_CONFIG.clone
     conf.delete(:access_key_id)
     conf.delete(:secret_access_key)
-    assert_nothing_raised { driver = create_driver(conf) }
+    assert_nothing_raised { create_driver(conf) }
   end
 
   def test_configure_in_EC2_without_IAM_role
@@ -82,14 +82,14 @@ class Elb_LogInputTest < Test::Unit::TestCase
     exception = assert_raise(Fluent::ConfigError) {
       conf = DEFAULT_CONFIG.clone
       conf.delete(:access_key_id)
-      driver = create_driver(conf)
+      create_driver(conf)
     }
     assert_equal('access_key_id is required', exception.message)
 
     exception = assert_raise(Fluent::ConfigError) {
       conf = DEFAULT_CONFIG.clone
       conf.delete(:secret_access_key)
-      driver = create_driver(conf)
+      create_driver(conf)
     }
     assert_equal('secret_access_key is required', exception.message)
   end
@@ -97,18 +97,18 @@ class Elb_LogInputTest < Test::Unit::TestCase
   def test_configure_outside_EC2
     iam_info_timeout
 
-    assert_nothing_raised { driver = create_driver }
+    assert_nothing_raised { create_driver }
     exception = assert_raise(Fluent::ConfigError) {
       conf = DEFAULT_CONFIG.clone
       conf.delete(:access_key_id)
-      driver = create_driver(conf)
+      create_driver(conf)
     }
     assert_equal('access_key_id is required', exception.message)
 
     exception = assert_raise(Fluent::ConfigError) {
       conf = DEFAULT_CONFIG.clone
       conf.delete(:secret_access_key)
-      driver = create_driver(conf)
+      create_driver(conf)
     }
     assert_equal('secret_access_key is required', exception.message)
   end
