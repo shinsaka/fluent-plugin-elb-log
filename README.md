@@ -5,8 +5,6 @@
 
 ## Requirements
 
-## Requirements
-
 | fluent-plugin-elb-log | fluentd    | ruby   |
 |-----------------------|------------|--------|
 | >= 0.3.0              | >= v0.14.0 | >= 2.1 |
@@ -50,7 +48,7 @@ SSL_CERT_FILE=/etc/ssl/certs/ca-bundle.crt (If you using amazon linux)
 
 ```config
 <source>
-  type elb_log
+  @type elb_log
 
   # following attibutes are required
   region            <region name>
@@ -70,7 +68,7 @@ SSL_CERT_FILE=/etc/ssl/certs/ca-bundle.crt (If you using amazon linux)
 ### Example setting
 ```config
 <source>
-  type elb_log
+  @type elb_log
   region            us-east-1
   s3_bucketname     my-elblog-bucket
   s3_prefix         prodcution/web
@@ -83,7 +81,7 @@ SSL_CERT_FILE=/etc/ssl/certs/ca-bundle.crt (If you using amazon linux)
 </source>
 
 <match **>
-  type stdout
+  @type stdout
 </match>
 ```
 
