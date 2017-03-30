@@ -5,8 +5,6 @@
 
 ## Requirements
 
-## Requirements
-
 | fluent-plugin-elb-log | fluentd    | ruby   |
 |-----------------------|------------|--------|
 | >= 0.3.0              | >= v0.14.0 | >= 2.1 |
