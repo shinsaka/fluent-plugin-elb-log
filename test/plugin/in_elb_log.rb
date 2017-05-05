@@ -113,4 +113,32 @@ class Elb_LogInputTest < Test::Unit::TestCase
     assert_equal('secret_access_key is required', exception.message)
   end
 
+  def test_logfilename_classic_parse
+    logfile_classic = 'classic/AWSLogs/123456789012/elasticloadbalancing/ap-northeast-1/2017/05/03/123456789012_elasticloadbalancing_ap-northeast-1_elbname_20170503T1250Z_10.0.0.1_43nzjpdj.log'
+
+    m = Fluent::Plugin::Elb_LogInput::LOGFILE_REGEXP.match(logfile_classic)
+    assert_equal('classic', m[:prefix])
+    assert_equal('123456789012', m[:account_id])
+    assert_equal('ap-northeast-1', m[:region])
+    assert_equal('2017/05/03', m[:logfile_date])
+    assert_equal('elbname', m[:logfile_elb_name])
+    assert_equal('20170503T1250Z', m[:elb_timestamp])
+    assert_equal('10.0.0.1', m[:elb_ip_address])
+    assert_equal('43nzjpdj', m[:logfile_hash])
+  end
+
+  def test_logfilename_applb_parse
+    require 'pp'
+    logfile_applb = 'applb/AWSLogs/123456789012/elasticloadbalancing/ap-northeast-1/2017/05/03/123456789012_elasticloadbalancing_ap-northeast-1_app.elbname.59bfa19e900030c2_20170503T1310Z_10.0.0.1_2tko12gv.log.gz'
+
+    m = Fluent::Plugin::Elb_LogInput::LOGFILE_REGEXP.match(logfile_applb)
+    assert_equal('applb', m[:prefix])
+    assert_equal('123456789012', m[:account_id])
+    assert_equal('ap-northeast-1', m[:region])
+    assert_equal('2017/05/03', m[:logfile_date])
+    assert_equal('app.elbname.59bfa19e900030c2', m[:logfile_elb_name])
+    assert_equal('20170503T1310Z', m[:elb_timestamp])
+    assert_equal('10.0.0.1', m[:elb_ip_address])
+    assert_equal('2tko12gv', m[:logfile_hash])
+  end
 end
