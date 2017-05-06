@@ -34,6 +34,12 @@
      - user_agent
      - option1, option2, option3
 
+## Support Application Load Balancer (ver 0.4.0 or later)
+- Support Access Logs for Application Load Balancer
+ - https://docs.aws.amazon.com/elasticloadbalancing/latest/application/load-balancer-access-logs.html
+- Existing ELB is called Classic Load Balancer
+ - http://docs.aws.amazon.com/elasticloadbalancing/latest/classic/access-log-collection.html
+
 ## When SSL certification error
 log:
 ```
@@ -117,6 +123,9 @@ SSL_CERT_FILE=/etc/ssl/certs/ca-bundle.crt (If you using amazon linux)
     "user_agent":"Mozilla/5.0 (compatible; MSIE 10.0; Windows NT 6.1; Trident/6.0)",
     "ssl_cipher":"DHE-RSA-AES128-SHA",
     "ssl_protocol":"TLSv1.2",
+    "type":"http",
+    "target_group_arn":"arn:aws:elasticloadbalancing:ap-northeast-1:123456789012:targetgroup/lbgrp1/605122a4e4ee9f2d",
+    "trace_id":"\"Root=1-xxxxxxxx-xxxxxxxxxxxxxxxxxxxxxxxx\""
     "option3":null
 }
 ```

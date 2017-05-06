@@ -1,4 +1,6 @@
 require 'time'
+require 'zlib'
+require 'fileutils'
 require 'aws-sdk'
 require 'fluent/input'
 
@@ -8,8 +10,7 @@ class Fluent::Plugin::Elb_LogInput < Fluent::Plugin::Input
   helpers :timer
 
   LOGFILE_REGEXP = /^((?<prefix>.+?)\/|)AWSLogs\/(?<account_id>[0-9]{12})\/elasticloadbalancing\/(?<region>.+?)\/(?<logfile_date>[0-9]{4}\/[0-9]{2}\/[0-9]{2})\/[0-9]{12}_elasticloadbalancing_.+?_(?<logfile_elb_name>[^_]+)_(?<elb_timestamp>[0-9]{8}T[0-9]{4}Z)_(?<elb_ip_address>.+?)_(?<logfile_hash>.+)\.log(.gz)?$/
-  ACCESSLOG_REGEXP = /^(?<time>\d{4}-\d{2}-\d{2}T\d{2}\:\d{2}\:\d{2}\.\d{6}Z) (?<elb>.+?) (?<client>[^ ]+)\:(?<client_port>.+?) (?<backend>.+?)(\:(?<backend_port>.+?))? (?<request_processing_time>.+?) (?<backend_processing_time>.+?) (?<response_processing_time>.+?) (?<elb_status_code>.+?) (?<backend_status_code>.+?) (?<received_bytes>.+?) (?<sent_bytes>.+?) \"(?<request_method>.+?) (?<request_uri>.+?) (?<request_protocol>.+?)\"( \"(?<user_agent>.*?)\" (?<ssl_cipher>.+?) (?<ssl_protocol>.+)(| (?<option3>.*)))?/
-
+  ACCESSLOG_REGEXP = /^((?<type>[a-z0-9]+) )?(?<time>\d{4}-\d{2}-\d{2}T\d{2}\:\d{2}\:\d{2}\.\d{6}Z) (?<elb>.+?) (?<client>[^ ]+)\:(?<client_port>.+?) (?<backend>.+?)(\:(?<backend_port>.+?))? (?<request_processing_time>.+?) (?<backend_processing_time>.+?) (?<response_processing_time>.+?) (?<elb_status_code>.+?) (?<backend_status_code>.+?) (?<received_bytes>.+?) (?<sent_bytes>.+?) \"(?<request_method>.+?) (?<request_uri>.+?) (?<request_protocol>.+?)\"( \"(?<user_agent>.*?)\" (?<ssl_cipher>.+?) (?<ssl_protocol>[^ ]+)( (?<target_group_arn>arn:.+) (?<trace_id>.+))?(| (?<option3>.*)))?/
   config_param :access_key_id, :string, default: nil, secret: true
   config_param :secret_access_key, :string, default: nil, secret: true
   config_param :region, :string
@@ -146,38 +147,48 @@ class Fluent::Plugin::Elb_LogInput < Fluent::Plugin::Input
   end
 
   def get_object_keys(timestamp)
-    # get values from object file name
     begin
       object_keys = []
+      get_object_keys_from_s3.each do |object_key|
+        matches = LOGFILE_REGEXP.match(object_key)
+        next unless matches
 
+        # snip old items
+        elb_timestamp_unixtime = Time.parse(matches[:elb_timestamp]).to_i
+        next if elb_timestamp_unixtime <= timestamp
+
+        log.debug object_key
+        object_keys << {
+          key: object_key,
+          prefix: matches[:prefix],
+          account_id: matches[:account_id],
+          region: matches[:region],
+          logfile_date: matches[:logfile_date],
+          logfile_elb_name: matches[:logfile_elb_name],
+          elb_timestamp: matches[:elb_timestamp],
+          elb_ip_address: matches[:elb_ip_address],
+          logfile_hash: matches[:logfile_hash],
+          elb_timestamp_unixtime: elb_timestamp_unixtime,
+        }
+      end
+      return object_keys
+    rescue => e
+      log.warn "error occurred: #{e.message}"
+    end
+  end
+
+  def get_object_keys_from_s3
+    begin
       objects = s3_client.list_objects(
         bucket: @s3_bucketname,
         max_keys: 100,
         prefix: @s3_prefix,
       )
 
+      object_keys = []
       objects.each do |object|
         object.contents.each do |content|
-          matches = LOGFILE_REGEXP.match(content.key)
-          next unless matches
-
-          # snip old items
-          elb_timestamp_unixtime = Time.parse(matches[:elb_timestamp]).to_i
-          next if elb_timestamp_unixtime <= timestamp
-
-          log.debug content.key
-          object_keys << {
-            key: content.key,
-            prefix: matches[:prefix],
-            account_id: matches[:account_id],
-            region: matches[:region],
-            logfile_date: matches[:logfile_date],
-            logfile_elb_name: matches[:logfile_elb_name],
-            elb_timestamp: matches[:elb_timestamp],
-            elb_ip_address: matches[:elb_ip_address],
-            logfile_hash: matches[:logfile_hash],
-            elb_timestamp_unixtime: elb_timestamp_unixtime,
-          }
+          object_keys << content.key
         end
       end
       return object_keys
@@ -200,17 +211,24 @@ class Fluent::Plugin::Elb_LogInput < Fluent::Plugin::Input
     begin
       log.debug "getting object from s3 name is #{object_name}"
 
-      # read an object from S3 to a file and write buffer file
-      File.open(@buf_file, File::WRONLY|File::CREAT|File::TRUNC) do |file|
-        s3_client.get_object(
-          bucket: @s3_bucketname,
-          key: object_name
-        ) do |chunk|
-          file.write(chunk)
+      Tempfile.create('fluent-elblog') do |tfile|
+        s3_client.get_object(bucket: @s3_bucketname, key: object_name) do |chunk|
+          tfile.write(chunk)
+        end
+        tfile.close
+
+        if File.extname(object_name) != '.gz'
+          FileUtils.cp(tfile.path, @buf_file)
+        else
+          File.open(@buf_file, File::WRONLY|File::CREAT|File::TRUNC) do |bfile|
+            Zlib::GzipReader.open(tfile.path) do |gz|
+              bfile.write gz.read
+            end
+          end
         end
       end
     rescue => e
-      log.warn "error occurred: #{e.message}"
+      log.warn "error occurred: #{e.message}, #{e.backtrace}"
     end
   end
 
@@ -245,6 +263,9 @@ class Fluent::Plugin::Elb_LogInput < Fluent::Plugin::Input
             "user_agent" => line_match[:user_agent],
             "ssl_cipher" => line_match[:ssl_cipher],
             "ssl_protocol" => line_match[:ssl_protocol],
+            "type" => line_match[:type],
+            "target_group_arn" => line_match[:target_group_arn],
+            "trace_id" => line_match[:trace_id],
             "option3" => line_match[:option3],
           }
 

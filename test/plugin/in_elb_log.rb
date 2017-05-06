@@ -140,4 +140,62 @@ class Elb_LogInputTest < Test::Unit::TestCase
     assert_equal('10.0.0.1', m[:elb_ip_address])
     assert_equal('2tko12gv', m[:logfile_hash])
   end
+
+  def test_log_classic_lb_parse
+    log = '2017-05-05T12:53:50.128456Z elbname 10.11.12.13:37852 192.168.30.186:443 0.00004 0.085372 0.000039 301 301 0 0 "GET https://elbname-123456789.ap-northeast-1.elb.amazonaws.com:443/ HTTP/1.1" "curl/7.51.0" ECDHE-RSA-AES128-GCM-SHA256 TLSv1.2'
+
+    m = Fluent::Plugin::Elb_LogInput::ACCESSLOG_REGEXP.match(log)
+    assert_equal('2017-05-05T12:53:50.128456Z', m[:time])
+    assert_equal('elbname', m[:elb])
+    assert_equal('10.11.12.13', m[:client])
+    assert_equal('37852', m[:client_port])
+    assert_equal('192.168.30.186', m[:backend])
+    assert_equal('443', m[:backend_port])
+    assert_equal('0.00004', m[:request_processing_time])
+    assert_equal('0.085372', m[:backend_processing_time])
+    assert_equal('0.000039', m[:response_processing_time])
+    assert_equal('301', m[:elb_status_code])
+    assert_equal('301', m[:backend_status_code])
+    assert_equal('0', m[:received_bytes])
+    assert_equal('0', m[:sent_bytes])
+    assert_equal('GET', m[:request_method])
+    assert_equal('https://elbname-123456789.ap-northeast-1.elb.amazonaws.com:443/', m[:request_uri])
+    assert_equal('HTTP/1.1', m[:request_protocol])
+    assert_equal('curl/7.51.0', m[:user_agent])
+    assert_equal('ECDHE-RSA-AES128-GCM-SHA256', m[:ssl_cipher])
+    assert_equal('TLSv1.2', m[:ssl_protocol])
+    assert_equal(nil, m[:type])
+    assert_equal(nil, m[:target_group_arn])
+    assert_equal(nil, m[:trace_id])
+    assert_equal(nil, m[:option3])
+  end
+
+  def test_log_application_lb_parse
+    log = 'https 2017-05-05T13:07:53.468529Z app/elbname/59bfa19e900030c2 10.20.30.40:52730 192.168.30.186:443 0.006 0.000 0.086 301 301 117 507 "GET https://elbname-1121128512.ap-northeast-1.elb.amazonaws.com:443/ HTTP/1.1" "curl/7.51.0" ECDHE-RSA-AES128-GCM-SHA256 TLSv1.2 arn:aws:elasticloadbalancing:ap-northeast-1:123456789012:targetgroup/lbgrp1/605122a4e4ee9f2d "Root=1-590c7929-4eb4cb393d46a01d22db8473"'
+
+    m = Fluent::Plugin::Elb_LogInput::ACCESSLOG_REGEXP.match(log)
+    assert_equal('2017-05-05T13:07:53.468529Z', m[:time])
+    assert_equal('app/elbname/59bfa19e900030c2', m[:elb])
+    assert_equal('10.20.30.40', m[:client])
+    assert_equal('52730', m[:client_port])
+    assert_equal('192.168.30.186', m[:backend])
+    assert_equal('443', m[:backend_port])
+    assert_equal('0.006', m[:request_processing_time])
+    assert_equal('0.000', m[:backend_processing_time])
+    assert_equal('0.086', m[:response_processing_time])
+    assert_equal('301', m[:elb_status_code])
+    assert_equal('301', m[:backend_status_code])
+    assert_equal('117', m[:received_bytes])
+    assert_equal('507', m[:sent_bytes])
+    assert_equal('GET', m[:request_method])
+    assert_equal('https://elbname-1121128512.ap-northeast-1.elb.amazonaws.com:443/', m[:request_uri])
+    assert_equal('HTTP/1.1', m[:request_protocol])
+    assert_equal('curl/7.51.0', m[:user_agent])
+    assert_equal('ECDHE-RSA-AES128-GCM-SHA256', m[:ssl_cipher])
+    assert_equal('TLSv1.2', m[:ssl_protocol])
+    assert_equal('https', m[:type])
+    assert_equal('arn:aws:elasticloadbalancing:ap-northeast-1:123456789012:targetgroup/lbgrp1/605122a4e4ee9f2d', m[:target_group_arn])
+    assert_equal('"Root=1-590c7929-4eb4cb393d46a01d22db8473"', m[:trace_id])
+    assert_equal(nil, m[:option3])
+  end
 end
