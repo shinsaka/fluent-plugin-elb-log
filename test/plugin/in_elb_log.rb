@@ -50,7 +50,7 @@ class Elb_LogInputTest < Test::Unit::TestCase
       .to_return(status: [404, 'Not Found'])
   end
 
-  def test_confiture_default
+  def test_configure_default
     use_iam_role
     assert_nothing_raised { create_driver }
 
