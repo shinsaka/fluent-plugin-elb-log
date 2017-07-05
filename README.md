@@ -2,6 +2,8 @@
 
 [![Gem Version](https://badge.fury.io/rb/fluent-plugin-elb-log.svg)](https://badge.fury.io/rb/fluent-plugin-elb-log)
 [![Build Status](https://travis-ci.org/shinsaka/fluent-plugin-elb-log.svg?branch=master)](https://travis-ci.org/shinsaka/fluent-plugin-elb-log)
+[![Code Climate](https://codeclimate.com/github/shinsaka/fluent-plugin-elb-log/badges/gpa.svg)](https://codeclimate.com/github/shinsaka/fluent-plugin-elb-log)
+[![Test Coverage](https://codeclimate.com/github/shinsaka/fluent-plugin-elb-log/badges/coverage.svg)](https://codeclimate.com/github/shinsaka/fluent-plugin-elb-log/coverage)
 
 ## Overview
 - Amazon Web Services ELB log input plubin for fluentd
