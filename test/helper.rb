@@ -1,6 +1,9 @@
 require 'bundler/setup'
 require 'test/unit'
 require 'webmock/test_unit'
+require 'simplecov'
+
+SimpleCov.start
 
 $LOAD_PATH.unshift(File.join(__dir__, '..', 'lib'))
 $LOAD_PATH.unshift(__dir__)
