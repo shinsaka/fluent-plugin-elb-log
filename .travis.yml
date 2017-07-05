@@ -1,4 +1,8 @@
-lang: ruby
+env:
+  global:
+    - CC_TEST_REPORTER_ID=bca5d9771c392e374d213de82dde44181a12b4c8b5d5bd37b249c81ca5bf32f1
+    - GIT_COMMITTED_AT=$(if [ "$TRAVIS_PULL_REQUEST" == "false" ]; then git log -1 --pretty=format:%ct; else git log -1 --skip 1 --pretty=format:%ct; fi)
+language: ruby
 
 rvm:
   - 2.1
@@ -8,3 +12,9 @@ rvm:
 branches:
   only:
     - master
+
+before_script:
+  - curl -L https://codeclimate.com/downloads/test-reporter/test-reporter-latest-linux-amd64 > ./cc-test-reporter
+  - chmod +x ./cc-test-reporter
+after_script:
+  - ./cc-test-reporter after-build --exit-code $TRAVIS_TEST_RESULT
