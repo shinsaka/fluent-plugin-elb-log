@@ -1,5 +1,7 @@
 # Amazon ELB log input plugin for fluentd
 
+![Gem Version](https://badge.fury.io/rb/fluent-plugin-elb-log.svg)](https://badge.fury.io/rb/fluent-plugin-elb-log)
+
 ## Overview
 - Amazon Web Services ELB log input plubin for fluentd
 
