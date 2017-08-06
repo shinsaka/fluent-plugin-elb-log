@@ -10,7 +10,7 @@ class Elb_LogInputTest < Test::Unit::TestCase
     access_key_id: 'dummy_access_key_id',
     secret_access_key: 'dummy_secret_access_key',
     s3_endpoint: 's3-ap-northeast-1.amazonaws.com',
-    s3_bucketname: 'bummy_bucket',
+    s3_bucketname: 'dummy_bucket',
     s3_prefix: 'test',
     region: 'ap-northeast-1',
     timestamp_file: 'elb_last_at.dat',
@@ -26,7 +26,7 @@ class Elb_LogInputTest < Test::Unit::TestCase
   end
 
   def iam_info_url
-    "http://169.254.169.254/latest/meta-data/iam/security-credentials/"
+    'http://169.254.169.254/latest/meta-data/iam/security-credentials/'
   end
 
   def use_iam_role
@@ -50,7 +50,18 @@ class Elb_LogInputTest < Test::Unit::TestCase
       .to_return(status: [404, 'Not Found'])
   end
 
+  def s3bucket_ok
+    stub_request(:get, 'https://s3-ap-northeast-1.amazonaws.com/dummy_bucket?encoding-type=url&max-keys=1&prefix=test')
+      .to_return(status: 200, body: "", headers: {})
+  end
+
+  def s3bucket_not_found
+    stub_request(:get, 'https://s3-ap-northeast-1.amazonaws.com/dummy_bucket?encoding-type=url&max-keys=1&prefix=test')
+      .to_return(status: 404, body: "", headers: {})
+  end
+
   def test_configure_default
+    s3bucket_ok
     use_iam_role
     assert_nothing_raised { create_driver }
 
@@ -70,6 +81,7 @@ class Elb_LogInputTest < Test::Unit::TestCase
   end
 
   def test_configure_in_EC2_with_IAM_role
+    s3bucket_ok
     use_iam_role
     conf = DEFAULT_CONFIG.clone
     conf.delete(:access_key_id)
@@ -78,8 +90,9 @@ class Elb_LogInputTest < Test::Unit::TestCase
   end
 
   def test_configure_in_EC2_without_IAM_role
-    not_use_iam_role
     exception = assert_raise(Fluent::ConfigError) {
+      s3bucket_ok
+      not_use_iam_role
       conf = DEFAULT_CONFIG.clone
       conf.delete(:access_key_id)
       create_driver(conf)
@@ -95,6 +108,7 @@ class Elb_LogInputTest < Test::Unit::TestCase
   end
 
   def test_configure_outside_EC2
+    s3bucket_ok
     iam_info_timeout
 
     assert_nothing_raised { create_driver }
@@ -111,6 +125,15 @@ class Elb_LogInputTest < Test::Unit::TestCase
       create_driver(conf)
     }
     assert_equal('secret_access_key is required', exception.message)
+  end
+
+  def test_not_found_s3bucket
+    e = assert_raise(Fluent::ConfigError) {
+      use_iam_role
+      s3bucket_not_found
+      create_driver(DEFAULT_CONFIG.clone)
+    }
+    assert_equal('s3 bucket not found dummy_bucket', e.message)
   end
 
   def test_logfilename_classic_lb_parse
