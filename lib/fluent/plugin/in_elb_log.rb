@@ -33,6 +33,7 @@ class Fluent::Plugin::Elb_LogInput < Fluent::Plugin::Input
     end
     raise Fluent::ConfigError.new("s3_bucketname is required") unless @s3_bucketname
     raise Fluent::ConfigError.new("timestamp_file is required") unless @timestamp_file
+    raise Fluent::ConfigError.new("s3 bucket not found #{@s3_bucketname}") unless s3bucket_is_ok?
   end
 
   def start
@@ -41,8 +42,6 @@ class Fluent::Plugin::Elb_LogInput < Fluent::Plugin::Input
     # files touch
     File.open(@timestamp_file, File::RDWR|File::CREAT).close
     File.open(@buf_file, File::RDWR|File::CREAT).close
-
-    raise StandardError.new("s3 bucket not found #{@s3_bucketname}") unless s3bucket_is_ok()
 
     timer_execute(:in_elb_log, @refresh_interval, &method(:input))
   end
@@ -104,15 +103,15 @@ class Fluent::Plugin::Elb_LogInput < Fluent::Plugin::Input
     end
   end
 
-  def s3bucket_is_ok
-    begin
-      log.debug "search bucket #{@s3_bucketname}"
+  def s3bucket_is_ok?
+    log.debug "searching for bucket #{@s3_bucketname}"
 
-      s3_client.list_buckets.buckets.any? do |bucket|
-        bucket.name == @s3_bucketname
-      end
+    begin
+      # try get one
+      !(get_object_list(1).nil?)
     rescue => e
-      log.warn "S3 Client error occurred: #{e.message}"
+      log.warn "error occurred: #{e.message}"
+      false
     end
   end
 
@@ -180,14 +179,8 @@ class Fluent::Plugin::Elb_LogInput < Fluent::Plugin::Input
 
   def get_object_keys_from_s3
     begin
-      objects = s3_client.list_objects(
-        bucket: @s3_bucketname,
-        max_keys: 100,
-        prefix: @s3_prefix,
-      )
-
       object_keys = []
-      objects.each do |object|
+      get_object_list(100).each do |object|
         object.contents.each do |content|
           object_keys << content.key
         end
@@ -206,6 +199,14 @@ class Fluent::Plugin::Elb_LogInput < Fluent::Plugin::Input
     rescue => e
       log.warn "error occurred: #{e.message}"
     end
+  end
+
+  def get_object_list(max_num)
+    s3_client.list_objects(
+      bucket: @s3_bucketname,
+      max_keys: max_num,
+      prefix: @s3_prefix
+    )
   end
 
   def get_file_from_s3(object_name)
