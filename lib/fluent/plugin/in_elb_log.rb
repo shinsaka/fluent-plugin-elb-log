@@ -245,37 +245,38 @@ class Fluent::Plugin::Elb_LogInput < Fluent::Plugin::Input
             next
           end
 
-          record = {
-            "time" => line_match[:time].gsub(/Z/, "+0000"),
-            "elb" => line_match[:elb],
-            "client" => line_match[:client],
-            "client_port" => line_match[:client_port],
-            "backend" => line_match[:backend],
-            "backend_port" => line_match[:backend_port],
-            "request_processing_time" => line_match[:request_processing_time].to_f,
-            "backend_processing_time" => line_match[:backend_processing_time].to_f,
-            "response_processing_time" => line_match[:response_processing_time].to_f,
-            "elb_status_code" => line_match[:elb_status_code],
-            "backend_status_code" => line_match[:backend_status_code],
-            "received_bytes" => line_match[:received_bytes].to_i,
-            "sent_bytes" => line_match[:sent_bytes].to_i,
-            "request_method" => line_match[:request_method],
-            "request_uri" => line_match[:request_uri],
-            "request_protocol" => line_match[:request_protocol],
-            "user_agent" => line_match[:user_agent],
-            "ssl_cipher" => line_match[:ssl_cipher],
-            "ssl_protocol" => line_match[:ssl_protocol],
-            "type" => line_match[:type],
-            "target_group_arn" => line_match[:target_group_arn],
-            "trace_id" => line_match[:trace_id],
-            "option3" => line_match[:option3],
-          }
-
-          router.emit(@tag, Fluent::Engine.now, record_common.merge(record))
+          router.emit(@tag, Fluent::Engine.now, record_common.merge(format_record(line_match)))
         end
       end
     rescue => e
       log.warn "error occurred: #{e.message}"
     end
+  end
+
+  def format_record(item)
+    { "time" => item[:time].gsub(/Z/, '+0000'),
+      "elb" => item[:elb],
+      "client" => item[:client],
+      "client_port" => item[:client_port],
+      "backend" => item[:backend],
+      "backend_port" => item[:backend_port],
+      "request_processing_time" => item[:request_processing_time].to_f,
+      "backend_processing_time" => item[:backend_processing_time].to_f,
+      "response_processing_time" => item[:response_processing_time].to_f,
+      "elb_status_code" => item[:elb_status_code],
+      "backend_status_code" => item[:backend_status_code],
+      "received_bytes" => item[:received_bytes].to_i,
+      "sent_bytes" => item[:sent_bytes].to_i,
+      "request_method" => item[:request_method],
+      "request_uri" => item[:request_uri],
+      "request_protocol" => item[:request_protocol],
+      "user_agent" => item[:user_agent],
+      "ssl_cipher" => item[:ssl_cipher],
+      "ssl_protocol" => item[:ssl_protocol],
+      "type" => item[:type],
+      "target_group_arn" => item[:target_group_arn],
+      "trace_id" => item[:trace_id],
+      "option3" => item[:option3]
+    }
   end
 end
