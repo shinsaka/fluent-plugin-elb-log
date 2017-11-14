@@ -180,10 +180,8 @@ class Fluent::Plugin::Elb_LogInput < Fluent::Plugin::Input
   def get_object_keys_from_s3
     begin
       object_keys = []
-      get_object_list(100).each do |object|
-        object.contents.each do |content|
-          object_keys << content.key
-        end
+      get_object_contents().each do |content|
+        object_keys << content.key
       end
       return object_keys
     rescue => e
@@ -207,6 +205,33 @@ class Fluent::Plugin::Elb_LogInput < Fluent::Plugin::Input
       max_keys: max_num,
       prefix: @s3_prefix
     )
+  end
+
+  def get_object_contents()
+    contents = []
+
+    resp = s3_client.list_objects_v2(
+      bucket: @s3_bucketname,
+      prefix: @s3_prefix
+    )
+
+    loop do
+      resp.contents.each do |content|
+        contents << content
+      end
+
+      if !resp.is_truncated 
+          return contents
+      end
+
+      resp = s3_client.list_objects_v2(
+        bucket: @s3_bucketname,
+        prefix: @s3_prefix,
+        continuation_token: resp.next_continuation_token
+      )
+    end
+
+    return contents
   end
 
   def get_file_from_s3(object_name)
