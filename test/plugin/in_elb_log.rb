@@ -51,14 +51,12 @@ class Elb_LogInputTest < Test::Unit::TestCase
   end
 
   def s3bucket_ok
-    stub_request(:get, 'https://s3.ap-northeast-1.amazonaws.com/dummy_bucket?encoding-type=url&max-keys=1&prefix=test')
-     .with(:headers => {:user_agent => 'aws-sdk-ruby2/2.10.82 ruby/2.4.2 x86_64-darwin17'})
+    stub_request(:get, 'https://s3-ap-northeast-1.amazonaws.com/dummy_bucket?encoding-type=url&max-keys=1&prefix=test')
       .to_return(status: 200, body: "", headers: {})
   end
 
   def s3bucket_not_found
-    stub_request(:get, 'https://s3.ap-northeast-1.amazonaws.com/dummy_bucket?encoding-type=url&max-keys=1&prefix=test')
-      .with(:headers => {:user_agent => 'aws-sdk-ruby2/2.10.82 ruby/2.4.2 x86_64-darwin17'})
+    stub_request(:get, 'https://s3-ap-northeast-1.amazonaws.com/dummy_bucket?encoding-type=url&max-keys=1&prefix=test')
       .to_return(status: 404, body: "", headers: {})
   end
 
