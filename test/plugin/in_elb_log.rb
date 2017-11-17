@@ -9,7 +9,7 @@ class Elb_LogInputTest < Test::Unit::TestCase
   DEFAULT_CONFIG = {
     access_key_id: 'dummy_access_key_id',
     secret_access_key: 'dummy_secret_access_key',
-    s3_endpoint: 's3-ap-northeast-1.amazonaws.com',
+    s3_endpoint: 's3.ap-northeast-1.amazonaws.com',
     s3_bucketname: 'dummy_bucket',
     s3_prefix: 'test',
     region: 'ap-northeast-1',
@@ -51,12 +51,12 @@ class Elb_LogInputTest < Test::Unit::TestCase
   end
 
   def s3bucket_ok
-    stub_request(:get, 'https://s3-ap-northeast-1.amazonaws.com/dummy_bucket?encoding-type=url&max-keys=1&prefix=test')
+    stub_request(:get, 'https://s3.ap-northeast-1.amazonaws.com/dummy_bucket?encoding-type=url&max-keys=1&prefix=test')
       .to_return(status: 200, body: "", headers: {})
   end
 
   def s3bucket_not_found
-    stub_request(:get, 'https://s3-ap-northeast-1.amazonaws.com/dummy_bucket?encoding-type=url&max-keys=1&prefix=test')
+    stub_request(:get, 'https://s3.ap-northeast-1.amazonaws.com/dummy_bucket?encoding-type=url&max-keys=1&prefix=test')
       .to_return(status: 404, body: "", headers: {})
   end
 

@@ -137,26 +137,29 @@ class Fluent::Plugin::Elb_LogInput < Fluent::Plugin::Input
         "key" => object_key[:key],
         "prefix" => object_key[:prefix],
         "elb_timestamp_unixtime" => object_key[:elb_timestamp_unixtime],
+        "s3_last_modified_unixtime" => object_key[:s3_last_modified_unixtime],
       }
 
       get_file_from_s3(object_key[:key])
       emit_lines_from_buffer_file(record_common)
 
-      put_timestamp_file(object_key[:elb_timestamp_unixtime])
+      put_timestamp_file(object_key[:s3_last_modified_unixtime])
     end
   end
 
   def get_object_keys(timestamp)
     begin
       object_keys = []
-      get_object_keys_from_s3.each do |object_key|
+      get_object_contents.each do |content|
+        # snip old items
+        s3_last_modified_unixtime = content.last_modified.to_i
+        next if s3_last_modified_unixtime <= timestamp
+
+        object_key = content.key
         matches = LOGFILE_REGEXP.match(object_key)
         next unless matches
 
-        # snip old items
-        elb_timestamp_unixtime = Time.parse(matches[:elb_timestamp]).to_i
-        next if elb_timestamp_unixtime <= timestamp
-
+        log.debug "matched"
         log.debug object_key
         object_keys << {
           key: object_key,
@@ -168,20 +171,9 @@ class Fluent::Plugin::Elb_LogInput < Fluent::Plugin::Input
           elb_timestamp: matches[:elb_timestamp],
           elb_ip_address: matches[:elb_ip_address],
           logfile_hash: matches[:logfile_hash],
-          elb_timestamp_unixtime: elb_timestamp_unixtime,
+          elb_timestamp_unixtime: Time.parse(matches[:elb_timestamp]).to_i,
+          s3_last_modified_unixtime: s3_last_modified_unixtime,
         }
-      end
-      return object_keys
-    rescue => e
-      log.warn "error occurred: #{e.message}"
-    end
-  end
-
-  def get_object_keys_from_s3
-    begin
-      object_keys = []
-      get_object_contents().each do |content|
-        object_keys << content.key
       end
       return object_keys
     rescue => e
@@ -192,7 +184,7 @@ class Fluent::Plugin::Elb_LogInput < Fluent::Plugin::Input
   def sort_object_key(src_object_keys)
     begin
       src_object_keys.sort do |a, b|
-        a[:elb_timestamp_unixtime] <=> b[:elb_timestamp_unixtime]
+        a[:s3_last_modified_unixtime] <=> b[:s3_last_modified_unixtime]
       end
     rescue => e
       log.warn "error occurred: #{e.message}"
@@ -234,25 +226,35 @@ class Fluent::Plugin::Elb_LogInput < Fluent::Plugin::Input
     return contents
   end
 
+  def inflate(srcfile, dstfile)
+    File.open(dstfile, File::WRONLY|File::CREAT|File::TRUNC) do |bfile|
+      File.open(srcfile) do |file|
+        zio = file
+        loop do
+          io = Zlib::GzipReader.new zio
+          bfile.write io.read
+          unused = io.unused
+          io.finish
+          break if unused.nil?
+          zio.pos -= unused.length
+        end
+      end
+    end
+  end
+
   def get_file_from_s3(object_name)
     begin
       log.debug "getting object from s3 name is #{object_name}"
 
-      Tempfile.create('fluent-elblog') do |tfile|
-        s3_client.get_object(bucket: @s3_bucketname, key: object_name) do |chunk|
-          tfile.write(chunk)
-        end
-        tfile.close
+      tfile = Tempfile.create('fluent-elblog')
+      tfile.close 
 
-        if File.extname(object_name) != '.gz'
-          FileUtils.cp(tfile.path, @buf_file)
-        else
-          File.open(@buf_file, File::WRONLY|File::CREAT|File::TRUNC) do |bfile|
-            Zlib::GzipReader.open(tfile.path) do |gz|
-              bfile.write gz.read
-            end
-          end
-        end
+      s3_client.get_object(bucket: @s3_bucketname, key: object_name, response_target: tfile.path)
+
+      if File.extname(object_name) != '.gz'
+        FileUtils.cp(tfile.path, @buf_file)
+      else
+        inflate(tfile.path, @buf_file)
       end
     rescue => e
       log.warn "error occurred: #{e.message}, #{e.backtrace}"
