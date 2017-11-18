@@ -212,7 +212,7 @@ class Fluent::Plugin::Elb_LogInput < Fluent::Plugin::Input
         contents << content
       end
 
-      if !resp.is_truncated 
+      if !resp.is_truncated
           return contents
       end
 
@@ -247,7 +247,7 @@ class Fluent::Plugin::Elb_LogInput < Fluent::Plugin::Input
       log.debug "getting object from s3 name is #{object_name}"
 
       tfile = Tempfile.create('fluent-elblog')
-      tfile.close 
+      tfile.close
 
       s3_client.get_object(bucket: @s3_bucketname, key: object_name, response_target: tfile.path)
 
