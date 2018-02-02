@@ -23,21 +23,8 @@
 - settings see: [Elastic Load Balancing](http://docs.aws.amazon.com/ElasticLoadBalancing/latest/DeveloperGuide/enable-access-logs.html)
 - developer guide: [](http://docs.aws.amazon.com/ElasticLoadBalancing/latest/DeveloperGuide/access-log-collection.html)
 
-## Different from version 0.1.x
-- Using version 2 of the AWS SDK for Ruby.
-- add parameter
- - region (required. see:http://docs.aws.amazon.com/general/latest/gr/rande.html#s3_region)
- - tag (optional)
-- remove parameter
- - s3_endpoint
-- output data change
- - add items
-     - region (AWS Region name)
-     - key (source S3 object name)
-     - prefix
-     - elb_timestamp_unixtime (converted to unix timestamp)
-     - user_agent
-     - option1, option2, option3
+## Different from version 0.4.x
+- Using version 3 of the AWS SDK for Ruby.
 
 ## Support Application Load Balancer (ver 0.4.0 or later)
 - Support Access Logs for Application Load Balancer
