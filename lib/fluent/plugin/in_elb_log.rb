@@ -1,7 +1,8 @@
 require 'time'
 require 'zlib'
 require 'fileutils'
-require 'aws-sdk'
+require 'aws-sdk-s3'
+require 'aws-sdk-ec2'
 require 'fluent/input'
 
 class Fluent::Plugin::Elb_LogInput < Fluent::Plugin::Input
