@@ -56,6 +56,7 @@ SSL_CERT_FILE=/etc/ssl/certs/ca-bundle.crt (If you using amazon linux)
   buf_file          <buffer file path>
   refresh_interval  <interval number by second>
   tag               <tag name(default: elb.access)>
+  delete            <boolean delete processed log files from S3(default: false)>
 
   # following attibutes are required if you don't use IAM Role
   access_key_id     <access_key>
@@ -74,6 +75,7 @@ SSL_CERT_FILE=/etc/ssl/certs/ca-bundle.crt (If you using amazon linux)
   buf_file          /tmp/fluentd-elblog.tmpfile
   refresh_interval  300
   tag               elb.access
+  delete            false
   access_key_id     XXXXXXXXXXXXXXXXXXXX
   secret_access_key xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
 </source>
