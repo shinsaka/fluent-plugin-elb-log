@@ -24,6 +24,7 @@ class Fluent::Plugin::Elb_LogInput < Fluent::Plugin::Input
   config_param :buf_file, :string, default: './fluentd_elb_log_buf_file'
   config_param :http_proxy, :string, default: nil
   config_param :start_time, :string, default: nil
+  config_param :delete, :bool, default: false
 
   def configure(conf)
     super
@@ -145,6 +146,10 @@ class Fluent::Plugin::Elb_LogInput < Fluent::Plugin::Input
       emit_lines_from_buffer_file(record_common)
 
       put_timestamp_file(object_key[:s3_last_modified_unixtime])
+
+      if @delete
+        delete_file_from_s3(object_key[:key])
+      end
     end
   end
 
@@ -257,6 +262,16 @@ class Fluent::Plugin::Elb_LogInput < Fluent::Plugin::Input
       else
         inflate(tfile.path, @buf_file)
       end
+    rescue => e
+      log.warn "error occurred: #{e.message}, #{e.backtrace}"
+    end
+  end
+
+  def delete_file_from_s3(object_name)
+    begin
+      log.debug "deleting object from s3 name is #{object_name}"
+
+      s3_client.delete_object(bucket: @s3_bucketname, key: object_name)
     rescue => e
       log.warn "error occurred: #{e.message}, #{e.backtrace}"
     end
