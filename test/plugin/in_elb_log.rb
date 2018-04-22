@@ -225,4 +225,32 @@ class Elb_LogInputTest < Test::Unit::TestCase
     assert_equal('"Root=1-590c7929-4eb4cb393d46a01d22db8473"', m[:trace_id])
     assert_equal(nil, m[:option3])
   end
+
+  def test_grp_and_trace_fileld
+    log = 'http 2018-03-15T03:50:00.337397Z app/elbname/aabbccdd9988 10.248.9.92:54000 10.248.9.77:80 0.001 0.002 0.003 200 200 686 6476 "GET http://services-lb.nottherealsite.net:80/svc/example HTTP/1.1" "-" - - arn:aws:elasticloadbalancing:us-east-1:123456789123:targetgroup/example-service/1234abcd1234abcd "Root=1-xxxxxxxx-yyyyyyyyyyyyyyyyyyyzzzzz" "-" "-" 3'
+    m = Fluent::Plugin::Elb_LogInput::ACCESSLOG_REGEXP.match(log)
+    assert_equal('http', m[:type])
+    assert_equal('2018-03-15T03:50:00.337397Z', m[:time])
+    assert_equal('app/elbname/aabbccdd9988', m[:elb])
+    assert_equal('10.248.9.92', m[:client])
+    assert_equal('54000', m[:client_port])
+    assert_equal('10.248.9.77', m[:backend])
+    assert_equal('80', m[:backend_port])
+    assert_equal('0.001', m[:request_processing_time])
+    assert_equal('0.002', m[:backend_processing_time])
+    assert_equal('0.003', m[:response_processing_time])
+    assert_equal('200', m[:elb_status_code])
+    assert_equal('200', m[:backend_status_code])
+    assert_equal('686', m[:received_bytes])
+    assert_equal('6476', m[:sent_bytes])
+    assert_equal('GET', m[:request_method])
+    assert_equal('http://services-lb.nottherealsite.net:80/svc/example', m[:request_uri])
+    assert_equal('HTTP/1.1', m[:request_protocol])
+    assert_equal('-', m[:user_agent])
+    assert_equal('-', m[:ssl_cipher])
+    assert_equal('-', m[:ssl_protocol])
+    assert_equal('arn:aws:elasticloadbalancing:us-east-1:123456789123:targetgroup/example-service/1234abcd1234abcd', m[:target_group_arn])
+    assert_equal('"Root=1-xxxxxxxx-yyyyyyyyyyyyyyyyyyyzzzzz"', m[:trace_id])
+    assert_equal(nil, m[:option3])
+  end
 end
