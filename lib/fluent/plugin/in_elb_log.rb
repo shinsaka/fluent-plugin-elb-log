@@ -4,6 +4,7 @@ require 'fileutils'
 require 'aws-sdk-s3'
 require 'aws-sdk-ec2'
 require 'fluent/input'
+require 'digest/sha1'
 
 class Fluent::Plugin::Elb_LogInput < Fluent::Plugin::Input
   Fluent::Plugin.register_input('elb_log', self)
@@ -25,6 +26,8 @@ class Fluent::Plugin::Elb_LogInput < Fluent::Plugin::Input
   config_param :http_proxy, :string, default: nil
   config_param :start_time, :string, default: nil
   config_param :delete, :bool, default: false
+  config_param :num_nodes, :integer, default: 1
+  config_param :node_no, :integer, default: 0
 
   def configure(conf)
     super
@@ -66,7 +69,12 @@ class Fluent::Plugin::Elb_LogInput < Fluent::Plugin::Input
       timestamp = start_time.to_i
       log.debug "timestamp file #{@timestamp_file} read"
       File.open(@timestamp_file, File::RDONLY) do |file|
-        timestamp = file.read.to_i if file.size > 0
+        if file.size > 0
+          timestamp_from_file = file.read.to_i 
+          if timestamp_from_file > timestamp 
+            timestamp = timestamp_from_file
+          end
+        end
       end
       log.debug "timestamp start at:" + Time.at(timestamp).to_s
       return timestamp
@@ -118,70 +126,39 @@ class Fluent::Plugin::Elb_LogInput < Fluent::Plugin::Input
   end
 
   def input
-    log.debug "start"
-
-    timestamp = get_timestamp_file()
-
-    object_keys = get_object_keys(timestamp)
-    object_keys = sort_object_key(object_keys)
-
-    log.info "processing #{object_keys.count} object(s)."
-
-    object_keys.each do |object_key|
-      record_common = {
-        "account_id" => object_key[:account_id],
-        "region" => object_key[:region],
-        "logfile_date" => object_key[:logfile_date],
-        "logfile_elb_name" => object_key[:logfile_elb_name],
-        "elb_ip_address" => object_key[:elb_ip_address],
-        "logfile_hash" => object_key[:logfile_hash],
-        "elb_timestamp" => object_key[:elb_timestamp],
-        "key" => object_key[:key],
-        "prefix" => object_key[:prefix],
-        "elb_timestamp_unixtime" => object_key[:elb_timestamp_unixtime],
-        "s3_last_modified_unixtime" => object_key[:s3_last_modified_unixtime],
-      }
-
-      get_file_from_s3(object_key[:key])
-      emit_lines_from_buffer_file(record_common)
-
-      put_timestamp_file(object_key[:s3_last_modified_unixtime])
-
-      if @delete
-        delete_file_from_s3(object_key[:key])
-      end
-    end
-  end
-
-  def get_object_keys(timestamp)
     begin
-      object_keys = []
-      get_object_contents.each do |content|
-        # snip old items
-        s3_last_modified_unixtime = content.last_modified.to_i
-        next if s3_last_modified_unixtime <= timestamp
+      log.debug "start"
+      timestamp = get_timestamp_file()
 
-        object_key = content.key
-        matches = LOGFILE_REGEXP.match(object_key)
-        next unless matches
+      object_keys = get_object_keys(timestamp)
+      object_keys = sort_object_key(object_keys)
 
-        log.debug "matched"
-        log.debug object_key
-        object_keys << {
-          key: object_key,
-          prefix: matches[:prefix],
-          account_id: matches[:account_id],
-          region: matches[:region],
-          logfile_date: matches[:logfile_date],
-          logfile_elb_name: matches[:logfile_elb_name],
-          elb_timestamp: matches[:elb_timestamp],
-          elb_ip_address: matches[:elb_ip_address],
-          logfile_hash: matches[:logfile_hash],
-          elb_timestamp_unixtime: Time.parse(matches[:elb_timestamp]).to_i,
-          s3_last_modified_unixtime: s3_last_modified_unixtime,
+      log.info "processing #{object_keys.count} object(s)."
+
+      object_keys.each do |object_key|
+        record_common = {
+          "account_id" => object_key[:account_id],
+          "region" => object_key[:region],
+          "logfile_date" => object_key[:logfile_date],
+          "logfile_elb_name" => object_key[:logfile_elb_name],
+          "elb_ip_address" => object_key[:elb_ip_address],
+          "logfile_hash" => object_key[:logfile_hash],
+          "elb_timestamp" => object_key[:elb_timestamp],
+          "key" => object_key[:key],
+          "prefix" => object_key[:prefix],
+          "elb_timestamp_unixtime" => object_key[:elb_timestamp_unixtime],
+          "s3_last_modified_unixtime" => object_key[:s3_last_modified_unixtime],
         }
+
+        get_file_from_s3(object_key[:key])
+        emit_lines_from_buffer_file(record_common)
+
+        put_timestamp_file(object_key[:s3_last_modified_unixtime])
+
+        if @delete
+          delete_file_from_s3(object_key[:key])
+        end
       end
-      return object_keys
     rescue => e
       log.warn "error occurred: #{e.message}"
     end
@@ -205,8 +182,8 @@ class Fluent::Plugin::Elb_LogInput < Fluent::Plugin::Input
     )
   end
 
-  def get_object_contents()
-    contents = []
+  def get_object_keys(timestamp)
+    object_keys = []
 
     resp = s3_client.list_objects_v2(
       bucket: @s3_bucketname,
@@ -215,11 +192,32 @@ class Fluent::Plugin::Elb_LogInput < Fluent::Plugin::Input
 
     loop do
       resp.contents.each do |content|
-        contents << content
+        s3_last_modified_unixtime = content.last_modified.to_i
+
+        object_key = content.key
+        node_no = Digest::SHA1.hexdigest(object_key).to_i(16) % @num_nodes
+        next unless node_no == @node_no 
+
+        matches = LOGFILE_REGEXP.match(object_key)
+        if s3_last_modified_unixtime > timestamp and matches
+          object_keys << {
+            key: object_key,
+            prefix: matches[:prefix],
+            account_id: matches[:account_id],
+            region: matches[:region],
+            logfile_date: matches[:logfile_date],
+            logfile_elb_name: matches[:logfile_elb_name],
+            elb_timestamp: matches[:elb_timestamp],
+            elb_ip_address: matches[:elb_ip_address],
+            logfile_hash: matches[:logfile_hash],
+            elb_timestamp_unixtime: Time.parse(matches[:elb_timestamp]).to_i,
+            s3_last_modified_unixtime: s3_last_modified_unixtime,
+          }
+        end
       end
 
       if !resp.is_truncated
-          return contents
+        return object_keys
       end
 
       resp = s3_client.list_objects_v2(
@@ -229,7 +227,7 @@ class Fluent::Plugin::Elb_LogInput < Fluent::Plugin::Input
       )
     end
 
-    return contents
+    return object_keys
   end
 
   def inflate(srcfile, dstfile)
