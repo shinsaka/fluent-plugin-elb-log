@@ -286,7 +286,7 @@ class Fluent::Plugin::Elb_LogInput < Fluent::Plugin::Input
             next
           end
 
-          router.emit(@tag, Fluent::Engine.now, record_common.merge(format_record(line_match)))
+          router.emit(@tag, Time.parse(line_match[:time]), record_common.merge(format_record(line_match)))
         end
       end
     rescue => e
