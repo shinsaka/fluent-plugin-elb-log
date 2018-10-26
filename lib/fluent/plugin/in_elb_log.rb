@@ -70,8 +70,8 @@ class Fluent::Plugin::Elb_LogInput < Fluent::Plugin::Input
       log.debug "timestamp file #{@timestamp_file} read"
       File.open(@timestamp_file, File::RDONLY) do |file|
         if file.size > 0
-          timestamp_from_file = file.read.to_i 
-          if timestamp_from_file > timestamp 
+          timestamp_from_file = file.read.to_i
+          if timestamp_from_file > timestamp
             timestamp = timestamp_from_file
           end
         end
@@ -196,7 +196,7 @@ class Fluent::Plugin::Elb_LogInput < Fluent::Plugin::Input
 
         object_key = content.key
         node_no = Digest::SHA1.hexdigest(object_key).to_i(16) % @num_nodes
-        next unless node_no == @node_no 
+        next unless node_no == @node_no
 
         matches = LOGFILE_REGEXP.match(object_key)
         if s3_last_modified_unixtime > timestamp and matches
@@ -286,7 +286,10 @@ class Fluent::Plugin::Elb_LogInput < Fluent::Plugin::Input
             next
           end
 
-          router.emit(@tag, Time.parse(line_match[:time]), record_common.merge(format_record(line_match)))
+          now = Fluent::Engine.now
+          time = Time.parse(line_match[:time]).to_i rescue now
+
+          router.emit(@tag, time, record_common.merge(format_record(line_match)))
         end
       end
     rescue => e
