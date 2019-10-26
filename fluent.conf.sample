@@ -1,5 +1,5 @@
 <source>
-  type elb_log
+  @type elb_log
   region            us-east-1
   s3_bucketname     my-elblog-bucket
   s3_prefix         prodcution/web
@@ -12,6 +12,5 @@
 </source>
 
 <match elb.access>
-  type stdout
+  @type stdout
 </match>
-
