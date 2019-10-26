@@ -250,15 +250,14 @@ class Fluent::Plugin::Elb_LogInput < Fluent::Plugin::Input
     begin
       log.debug "getting object from s3 name is #{object_name}"
 
-      tfile = Tempfile.create('fluent-elblog')
-      tfile.close
+      Tempfile.create('fluent-elblog') do |tfile|
+        s3_client.get_object(bucket: @s3_bucketname, key: object_name, response_target: tfile.path)
 
-      s3_client.get_object(bucket: @s3_bucketname, key: object_name, response_target: tfile.path)
-
-      if File.extname(object_name) != '.gz'
-        FileUtils.cp(tfile.path, @buf_file)
-      else
-        inflate(tfile.path, @buf_file)
+        if File.extname(object_name) != '.gz'
+          FileUtils.cp(tfile.path, @buf_file)
+        else
+          inflate(tfile.path, @buf_file)
+        end
       end
     rescue => e
       log.warn "error occurred: #{e.message}, #{e.backtrace}"
