@@ -251,6 +251,45 @@ class Elb_LogInputTest < Test::Unit::TestCase
     assert_equal('-', m[:ssl_protocol])
     assert_equal('arn:aws:elasticloadbalancing:us-east-1:123456789123:targetgroup/example-service/1234abcd1234abcd', m[:target_group_arn])
     assert_equal('"Root=1-xxxxxxxx-yyyyyyyyyyyyyyyyyyyzzzzz"', m[:trace_id])
+    assert_equal('"-" "-" 3', m[:option3])
+  end
+
+  def test_alb_all_field
+    log = 'http 2019-10-26T06:10:03.157333Z app/my-alb/520e61ffffffffff 60.11.22.33:51306 192.168.30.111:443 0.010 0.097 0.001 301 301 414 507 "GET http://www.example.com:80/ HTTP/1.1" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/78.0.3904.70 Safari/537.36" ssl1 ssl2 arn:aws:elasticloadbalancing:ap-northeast-1:123456789012:targetgroup/lbgrp1/605122a4ffffffff "Root=1-123abcde-d03aafc8497211546b64c54c" "domainname" "certarn" 50000 2019-10-26T06:10:03.050000Z "forward" "redirect://url-something.com/" "error_reason" "192.168.30.186:443" "301"'
+    m = Fluent::Plugin::Elb_LogInput::ACCESSLOG_REGEXP.match(log)
+    assert_equal('http', m[:type])
+    assert_equal('2019-10-26T06:10:03.157333Z', m[:time])
+
+    assert_equal('app/my-alb/520e61ffffffffff', m[:elb])
+    assert_equal('60.11.22.33', m[:client])
+    assert_equal('51306', m[:client_port])
+    assert_equal('192.168.30.111', m[:backend])
+    assert_equal('443', m[:backend_port])
+
+    assert_equal('0.010', m[:request_processing_time])
+    assert_equal('0.097', m[:backend_processing_time])
+    assert_equal('0.001', m[:response_processing_time])
+    assert_equal('301', m[:elb_status_code])
+    assert_equal('301', m[:backend_status_code])
+    assert_equal('414', m[:received_bytes])
+    assert_equal('507', m[:sent_bytes])
+    assert_equal('GET', m[:request_method])
+    assert_equal('http://www.example.com:80/', m[:request_uri])
+    assert_equal('HTTP/1.1', m[:request_protocol])
+    assert_equal('Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/78.0.3904.70 Safari/537.36', m[:user_agent])
+    assert_equal('ssl1', m[:ssl_cipher])
+    assert_equal('ssl2', m[:ssl_protocol])
+    assert_equal('arn:aws:elasticloadbalancing:ap-northeast-1:123456789012:targetgroup/lbgrp1/605122a4ffffffff', m[:target_group_arn])
+    assert_equal('"Root=1-123abcde-d03aafc8497211546b64c54c"', m[:trace_id])
+    assert_equal('"domainname"', m[:domain_name])
+    assert_equal('"certarn"', m[:chosen_cert_arn])
+    assert_equal('50000', m[:matched_rule_priority])
+    assert_equal('2019-10-26T06:10:03.050000Z', m[:request_creation_time])
+    assert_equal('"forward"', m[:actions_executed])
+    assert_equal('"redirect://url-something.com/"', m[:redirect_url])
+    assert_equal('"error_reason"', m[:error_reason])
+    assert_equal('"192.168.30.186:443"', m[:option1])
+    assert_equal('"301"', m[:option2])
     assert_equal(nil, m[:option3])
   end
 end
