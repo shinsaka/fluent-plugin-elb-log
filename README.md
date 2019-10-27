@@ -86,7 +86,7 @@ SSL_CERT_FILE=/etc/ssl/certs/ca-bundle.crt (If you using amazon linux)
 ```
 
 ### json output example
-```
+```json
 {
     "account_id":"123456789012",
     "region":"ap-northeast-1",
@@ -118,9 +118,17 @@ SSL_CERT_FILE=/etc/ssl/certs/ca-bundle.crt (If you using amazon linux)
     "ssl_cipher":"DHE-RSA-AES128-SHA",
     "ssl_protocol":"TLSv1.2",
     "type":"http",
-    "target_group_arn":"arn:aws:elasticloadbalancing:ap-northeast-1:123456789012:targetgroup/lbgrp1/605122a4e4ee9f2d",
-    "trace_id":"\"Root=1-xxxxxxxx-xxxxxxxxxxxxxxxxxxxxxxxx\""
-    "option3":null
+    "target_group_arn": "arn:aws:elasticloadbalancing:ap-northeast-1:123456789012:targetgroup/lbgrp1/605122a4e4ee9f2d",
+    "trace_id": "\"Root=1-xxxxxxxx-xxxxxxxxxxxxxxxxxxxxxxxx\"",
+    "domain_name": "-",
+    "chosen_cert_arn": "-",
+    "matched_rule_priority": "0",
+    "request_creation_time": "2099-10-26T06:10:03.050000Z",
+    "actions_executed": "forward",
+    "redirect_url": "-",
+    "error_reason": "-",
+    "option1": "\"192.168.0.1:443\"",
+    "option2": "\"301\"",
+    "option3": null
 }
 ```
-
