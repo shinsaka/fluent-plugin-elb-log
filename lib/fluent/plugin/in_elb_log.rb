@@ -293,7 +293,7 @@ class Fluent::Plugin::Elb_LogInput < Fluent::Plugin::Input
             time,
             record_common.merge(
               format_record(line_match),
-              @include_all_message ? {"all_message": line} : {}
+              @include_all_message ? {"all_message" => line} : {}
             )
           )
         end
