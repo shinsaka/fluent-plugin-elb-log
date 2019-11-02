@@ -94,6 +94,7 @@ class Elb_LogInputTest < Test::Unit::TestCase
   end
 
   def test_configure_in_EC2_without_IAM_role
+    ENV['AWS_PROFILE'] = ''
     exception = assert_raise(Fluent::ConfigError) {
       s3bucket_ok
       not_use_iam_role
