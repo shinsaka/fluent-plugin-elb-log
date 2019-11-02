@@ -27,6 +27,7 @@ class Fluent::Plugin::Elb_LogInput < Fluent::Plugin::Input
   config_param :delete, :bool, default: false
   config_param :num_nodes, :integer, default: 1
   config_param :node_no, :integer, default: 0
+  config_param :include_all_message, :bool, default: false
 
   def configure(conf)
     super
@@ -287,7 +288,14 @@ class Fluent::Plugin::Elb_LogInput < Fluent::Plugin::Input
           now = Fluent::Engine.now
           time = Time.parse(line_match[:time]).to_i rescue now
 
-          router.emit(@tag, time, record_common.merge(format_record(line_match)))
+          router.emit(
+            @tag,
+            time,
+            record_common.merge(
+              format_record(line_match),
+              @include_all_message ? {"all_message": line} : {}
+            )
+          )
         end
       end
     rescue => e
