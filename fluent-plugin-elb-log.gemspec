@@ -4,7 +4,7 @@ $LOAD_PATH.unshift(lib) unless $LOAD_PATH.include?(lib)
 
 Gem::Specification.new do |spec|
   spec.name          = "fluent-plugin-elb-log"
-  spec.version       = "1.2.0"
+  spec.version       = "1.3.0"
   spec.authors       = ["shinsaka"]
   spec.email         = ["shinx1265@gmail.com"]
   spec.summary       = "Amazon ELB log input plugin"
