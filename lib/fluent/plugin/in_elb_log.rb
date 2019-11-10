@@ -291,9 +291,9 @@ class Fluent::Plugin::Elb_LogInput < Fluent::Plugin::Input
           router.emit(
             @tag,
             time,
-            record_common.merge(
-              format_record(line_match),
-              @include_all_message ? {"all_message" => line} : {}
+            record_common
+              .merge(format_record(line_match)
+              .merge(@include_all_message ? {"all_message" => line} : {})
             )
           )
         end
