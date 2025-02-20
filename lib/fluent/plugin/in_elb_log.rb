@@ -11,8 +11,8 @@ class Fluent::Plugin::Elb_LogInput < Fluent::Plugin::Input
 
   helpers :timer
 
-  LOGFILE_REGEXP = /^((?<prefix>.+?)\/|)AWSLogs\/(?<account_id>[0-9]{12})\/elasticloadbalancing\/(?<region>.+?)\/(?<logfile_date>[0-9]{4}\/[0-9]{2}\/[0-9]{2})\/[0-9]{12}_elasticloadbalancing_.+?_(?<logfile_elb_name>[^_]+)_(?<elb_timestamp>[0-9]{8}T[0-9]{4}Z)_(?<elb_ip_address>.+?)_(?<logfile_hash>.+)\.log(.gz)?$/
-  ACCESSLOG_REGEXP = /^((?<type>[a-z0-9]+) )?(?<time>\d{4}-\d{2}-\d{2}T\d{2}\:\d{2}\:\d{2}\.\d{6}Z) (?<elb>.+?) (?<client>[^ ]+)\:(?<client_port>.+?) (?<backend>.+?)(\:(?<backend_port>.+?))? (?<request_processing_time>.+?) (?<backend_processing_time>.+?) (?<response_processing_time>.+?) (?<elb_status_code>.+?) (?<backend_status_code>.+?) (?<received_bytes>.+?) (?<sent_bytes>.+?) \"(?<request_method>.+?) (?<request_uri>.+?) (?<request_protocol>.+?)\"(\s+\"(?<user_agent>.+?)\" (?<ssl_cipher>.+?) (?<ssl_protocol>[^\s]+)( (?<target_group_arn>arn:\S+) (?<trace_id>[^\s]+))?( \"(?<domain_name>.+?)\" \"(?<chosen_cert_arn>.+?)\" (?<matched_rule_priority>.+?) (?<request_creation_time>.+?) \"(?<actions_executed>.+?)\" \"(?<redirect_url>.+?)\" \"(?<error_reason>[^\s]+)\"( |$))?((?<option1>[^\s]+)( |$))?((?<option2>[^\s]+)( |$))?( (?<option3>.*))?)?/
+  LOGFILE_REGEXP = /^((?<prefix>.+?)\/|)AWSLogs\/(?<account_id>[0-9]{12})\/elasticloadbalancing\/(?<region>.+?)\/(?<logfile_date>[0-9]{4}\/[0-9]{2}\/[0-9]{2})\/[0-9]{12}_elasticloadbalancing_.+?_(?<logfile_elb_name>[^_]+)_(?<logfile_timestamp>[0-9]{8}T[0-9]{4}Z)_(?<elb_ip_address>.+?)_(?<logfile_hash>.+)\.log(.gz)?$/
+  ACCESSLOG_REGEXP = /^((?<type>[a-z0-9]+) )?(?<time>\d{4}-\d{2}-\d{2}T\d{2}\:\d{2}\:\d{2}\.\d{6}Z) (?<elb>.+?) (?<client>[^ ]+)\:(?<client_port>.+?) (?<target>.+?)(\:(?<target_port>.+?))? (?<request_processing_time>.+?) (?<target_processing_time>.+?) (?<response_processing_time>.+?) (?<elb_status_code>.+?) (?<target_status_code>.+?) (?<received_bytes>.+?) (?<sent_bytes>.+?) \"(?<request_method>.+?) (?<request_uri>.+?) (?<request_protocol>.+?)\" \"(?<user_agent>.+?)\" (?<ssl_cipher>.+?) (?<ssl_protocol>.+?) (?<target_group_arn>arn:\S+) \"(?<trace_id>[^\s]+)\" \"(?<domain_name>.+?)\" \"(?<chosen_cert_arn>.+?)\" (?<matched_rule_priority>.+?) (?<request_creation_time>.+?) \"(?<actions_executed>.+?)\" \"(?<redirect_url>.+?)\" \"(?<error_reason>.+?)\" \"(?<target_port_list>.+?)\" \"(?<target_status_code_list>.+?)\" \"(?<classification>.+?)\" \"(?<classification_reason>.+)\" (?<conn_trace_id>[^\s]+)/
   config_param :access_key_id, :string, default: nil, secret: true
   config_param :secret_access_key, :string, default: nil, secret: true
   config_param :region, :string
@@ -143,10 +143,10 @@ class Fluent::Plugin::Elb_LogInput < Fluent::Plugin::Input
           "logfile_elb_name" => object_key[:logfile_elb_name],
           "elb_ip_address" => object_key[:elb_ip_address],
           "logfile_hash" => object_key[:logfile_hash],
-          "elb_timestamp" => object_key[:elb_timestamp],
+          "logfile_timestamp" => object_key[:logfile_timestamp],
           "key" => object_key[:key],
           "prefix" => object_key[:prefix],
-          "elb_timestamp_unixtime" => object_key[:elb_timestamp_unixtime],
+          "logfile_timestamp_unixtime" => object_key[:logfile_timestamp_unixtime],
           "s3_last_modified_unixtime" => object_key[:s3_last_modified_unixtime],
         }
 
@@ -207,10 +207,10 @@ class Fluent::Plugin::Elb_LogInput < Fluent::Plugin::Input
             region: matches[:region],
             logfile_date: matches[:logfile_date],
             logfile_elb_name: matches[:logfile_elb_name],
-            elb_timestamp: matches[:elb_timestamp],
+            logfile_timestamp: matches[:elb_timestamp],
             elb_ip_address: matches[:elb_ip_address],
             logfile_hash: matches[:logfile_hash],
-            elb_timestamp_unixtime: Time.parse(matches[:elb_timestamp]).to_i,
+            logfile_timestamp_unixtime: Time.parse(matches[:logfile_timestamp]).to_i,
             s3_last_modified_unixtime: s3_last_modified_unixtime,
           }
         end
@@ -308,13 +308,13 @@ class Fluent::Plugin::Elb_LogInput < Fluent::Plugin::Input
       "elb" => item[:elb],
       "client" => item[:client],
       "client_port" => item[:client_port],
-      "backend" => item[:backend],
-      "backend_port" => item[:backend_port],
+      "target" => item[:target],
+      "target_port" => item[:target_port],
       "request_processing_time" => item[:request_processing_time].to_f,
-      "backend_processing_time" => item[:backend_processing_time].to_f,
+      "target_processing_time" => item[:target_processing_time].to_f,
       "response_processing_time" => item[:response_processing_time].to_f,
       "elb_status_code" => item[:elb_status_code],
-      "backend_status_code" => item[:backend_status_code],
+      "target_status_code" => item[:target_status_code],
       "received_bytes" => item[:received_bytes].to_i,
       "sent_bytes" => item[:sent_bytes].to_i,
       "request_method" => item[:request_method],
@@ -333,9 +333,11 @@ class Fluent::Plugin::Elb_LogInput < Fluent::Plugin::Input
       "actions_executed" => item[:actions_executed],
       "redirect_url" => item[:redirect_url],
       "error_reason" => item[:error_reason],
-      "option1" => item[:option1],
-      "option2" => item[:option2],
-      "option3" => item[:option3]
+      "target_port_list" => item[:target_port_list],
+      "target_status_code_list" => item[:target_status_code_list],
+      "classification" => item[:classification],
+      "classification_reason" => item[:classification_reason],
+      "conn_trace_id" => item[:conn_trace_id]
     }
   end
 end

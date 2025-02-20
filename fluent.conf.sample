@@ -12,5 +12,5 @@
 </source>
 
 <match elb.access>
-  @type stdout
+    @type stdout
 </match>
