@@ -5,11 +5,21 @@
   s3_prefix         prodcution/web
   timestamp_file    /tmp/elb_last_at.dat
   buf_file          /tmp/fluentd-elblog.tmpfile
-  refresh_interval  300
+  refresh_interval  30
   tag               elb.access
+  use_sqs           true
   access_key_id     XXXXXXXXXXXXXXXXXXXX
   secret_access_key xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
 </source>
+
+<filter elb.access>
+  @type record_transformer
+  <record>
+    timestamp ${record["request_creation_time"]}
+    logfile_name ${record["key"]}
+  </record>
+  remove_keys prefix,logfile_date,logfile_elb_name,logfile_hash,logfile_timestamp,logfile_timestamp_unixtime,key,time,s3_last_modified_unixtime
+</filter>
 
 <match elb.access>
     @type stdout
