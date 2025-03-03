@@ -13,7 +13,7 @@ class Fluent::Plugin::Elb_LogInput < Fluent::Plugin::Input
   helpers :timer
 
   LOGFILE_REGEXP = /^((?<prefix>.+?)\/|)AWSLogs\/(?<account_id>[0-9]{12})\/elasticloadbalancing\/(?<region>.+?)\/(?<logfile_date>[0-9]{4}\/[0-9]{2}\/[0-9]{2})\/[0-9]{12}_elasticloadbalancing_.+?_(?<logfile_elb_name>[^_]+)_(?<logfile_timestamp>[0-9]{8}T[0-9]{4}Z)_(?<elb_ip_address>.+?)_(?<logfile_hash>.+)\.log(.gz)?$/
-  ACCESSLOG_REGEXP = /^((?<type>[a-z0-9]+) )?(?<time>\d{4}-\d{2}-\d{2}T\d{2}\:\d{2}\:\d{2}\.\d{6}Z) (?<elb>\S+) (?<client>\S+)\:(?<client_port>\S+) (?<target>[^:\s]+)(?::(?<target_port>\S+))? (?<request_processing_time>\S+) (?<target_processing_time>\S+) (?<response_processing_time>\S+) (?<elb_status_code>\S+) (?<target_status_code>\S+) (?<received_bytes>\S+) (?<sent_bytes>\S+) \"(?<request_method>\S+) (?<request_uri>\S+) (?<request_protocol>\S+)\" \"(?<user_agent>.+?)\" (?<ssl_cipher>\S+) (?<ssl_protocol>\S+) (?<target_group_arn>\S+) \"(?<trace_id>\S+)\" \"(?<domain_name>\S+)\" \"(?<chosen_cert_arn>\S+)\" (?<matched_rule_priority>\S+) (?<request_creation_time>\S+) \"(?<actions_executed>\S+)\" \"(?<redirect_url>\S+)\" \"(?<error_reason>\S+)\" \"(?<target_port_list>\S+)\" \"(?<target_status_code_list>\S+)\" \"(?<classification>\S+)\" \"(?<classification_reason>\S+)\" (?<conn_trace_id>\S+)/
+  ACCESSLOG_REGEXP = /^((?<type>[a-z0-9]+) )?(?<time>\d{4}-\d{2}-\d{2}T\d{2}\:\d{2}\:\d{2}\.\d{6}Z) (?<elb>\S+) (?<client>\S+)\:(?<client_port>\S+) (?<target>[^:\s]+)(?::(?<target_port>\S+))? (?<request_processing_time>\S+) (?<target_processing_time>\S+) (?<response_processing_time>\S+) (?<elb_status_code>\S+) (?<target_status_code>\S+) (?<received_bytes>\S+) (?<sent_bytes>\S+) \"(?<request_method>\S+) (?<request_uri>\S+) (?<request_protocol>\S+)\" \"(?<user_agent>.*?)\" (?<ssl_cipher>\S+) (?<ssl_protocol>\S+) (?<target_group_arn>\S+) \"(?<trace_id>\S+)\" \"(?<domain_name>\S+)\" \"(?<chosen_cert_arn>\S+)\" (?<matched_rule_priority>\S+) (?<request_creation_time>\S+) \"(?<actions_executed>\S+)\" \"(?<redirect_url>\S+)\" \"(?<error_reason>\S+)\" \"(?<target_port_list>\S+)\" \"(?<target_status_code_list>\S+)\" \"(?<classification>\S+)\" \"(?<classification_reason>\S+)\" (?<conn_trace_id>\S+)/
   config_param :access_key_id, :string, default: nil, secret: true
   config_param :secret_access_key, :string, default: nil, secret: true
   config_param :region, :string
@@ -77,12 +77,12 @@ class Fluent::Plugin::Elb_LogInput < Fluent::Plugin::Input
     log.debug "shutdown"
     if @running
 	@running = false
-        if @use_sqs
+	if @use_sqs
           log.debug "pausing shutdown for 2x#{@refresh_interval}"
           sleep 2*@refresh_interval
           unset_sqs if @queue_url && @queue_url != ""
         else
-          log.debug "pausing shutdown for 30 seconds"
+    	  log.debug "pausing shutdown for 30 seconds"
           sleep 30
         end
     end
@@ -91,13 +91,16 @@ class Fluent::Plugin::Elb_LogInput < Fluent::Plugin::Input
   def setup_sqs_timer
     if @running
       setup_sqs
+      return unless @running
       timer_execute(:in_elb_log, @refresh_interval) do
 	if @running
-    	    process_sqs
-    	    log.debug "sleeping for #{@refresh_interval}"
+    	  process_sqs
+    	  log.debug "sleeping for #{@refresh_interval}"
     	else
+    	  if @queue_url && @queue_url != ""
     	    log.debug "Unsetting SQS"
-	    unset_sqs if @queue_url && @queue_url != ""
+	    unset_sqs
+	  end
 	end
       end
     end
@@ -120,6 +123,7 @@ class Fluent::Plugin::Elb_LogInput < Fluent::Plugin::Input
       !ec2.config.credentials.nil?
     rescue => e
       log.warn "EC2 Client error occurred: #{e.message}"
+      @running = false
     end
   end
 
@@ -128,7 +132,7 @@ class Fluent::Plugin::Elb_LogInput < Fluent::Plugin::Input
     timestamp = Time.now.to_i
     queue_name = "fluent-plugin-elb-log-#{timestamp}"
 
-    sts_client = Aws::STS::Client.new
+    sts_client = Aws::STS::Client.new(region: @region)
     account_id = sts_client.get_caller_identity.account
 
     queue_policy = {
@@ -142,13 +146,13 @@ class Fluent::Plugin::Elb_LogInput < Fluent::Plugin::Input
             "Service": "s3.amazonaws.com"
           },
           "Action": "SQS:SendMessage",
-          "Resource": "arn:aws:sqs:us-east-1:#{account_id}:#{queue_name}",
+          "Resource": "arn:aws:sqs:#{@region}:#{account_id}:#{queue_name}",
           "Condition": {
             "StringEquals": {
               "aws:SourceAccount": "#{account_id}"
 	    },
             "ArnLike": {
-    	      "aws:SourceArn": "arn:aws:s3:*:*:#{@s3_bucket}"
+    	      "aws:SourceArn": "arn:aws:s3:*:*:#{@s3_bucketname}"
 	    }
           }
         }
@@ -195,11 +199,14 @@ class Fluent::Plugin::Elb_LogInput < Fluent::Plugin::Input
 
     rescue Aws::SQS::Errors::InvalidAttributeValue => e
       log.debug "SQS error: #{e.message}"
+      @running = false
 
     rescue Aws::S3::Errors::InvalidArgument => e
       log.debug "S3 Event error: #{e.message}"
       sqs_client.delete_queue(queue_url: @queue_url)
+      @queue_url = ""
       log.debug "#{queue_arn} deleted"
+      @running = false
     end
   end
 
@@ -234,6 +241,7 @@ class Fluent::Plugin::Elb_LogInput < Fluent::Plugin::Input
       return timestamp
     rescue => e
       log.warn "timestamp file get and parse error occurred: #{e.message}"
+      @running = false
     end
   end
 
@@ -245,6 +253,7 @@ class Fluent::Plugin::Elb_LogInput < Fluent::Plugin::Input
       end
     rescue => e
       log.warn "timestamp file get and parse error occurred: #{e.message}"
+      @running = false
     end
   end
 
@@ -264,6 +273,7 @@ class Fluent::Plugin::Elb_LogInput < Fluent::Plugin::Input
       Aws::S3::Client.new(options)
     rescue => e
       log.warn "S3 Client error occurred: #{e.message}"
+      @running = false
     end
   end
 
@@ -275,6 +285,7 @@ class Fluent::Plugin::Elb_LogInput < Fluent::Plugin::Input
       !(get_object_list(1).nil?)
     rescue => e
       log.warn "error occurred: #{e.message}"
+      @running = false
       false
     end
   end
@@ -295,6 +306,7 @@ class Fluent::Plugin::Elb_LogInput < Fluent::Plugin::Input
       Aws::SQS::Client.new(options)
     rescue => e
       log.warn "SQS Client error occurred: #{e.message}"
+      @running = false
     end
   end
 
@@ -334,6 +346,7 @@ class Fluent::Plugin::Elb_LogInput < Fluent::Plugin::Input
       end
     rescue => e
       log.warn "error occurred: #{e.message}"
+      @running = false
     end
   end
 
@@ -417,6 +430,7 @@ class Fluent::Plugin::Elb_LogInput < Fluent::Plugin::Input
       end
       rescue => e
         log.warn "error occurred: #{e.message}"
+        @running = false
     end
   end
 
@@ -427,6 +441,7 @@ class Fluent::Plugin::Elb_LogInput < Fluent::Plugin::Input
       end
     rescue => e
       log.warn "error occurred: #{e.message}"
+      @running = false
     end
   end
 
@@ -531,6 +546,7 @@ class Fluent::Plugin::Elb_LogInput < Fluent::Plugin::Input
       end
     rescue => e
       log.warn "error occurred: #{e.message}, #{e.backtrace}"
+      @running = false
     end
   end
 
@@ -570,6 +586,7 @@ class Fluent::Plugin::Elb_LogInput < Fluent::Plugin::Input
       end
     rescue => e
       log.warn "error occurred: #{e.message}"
+      @running = false
     end
   end
 
