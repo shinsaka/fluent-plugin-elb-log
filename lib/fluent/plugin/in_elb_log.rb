@@ -62,9 +62,10 @@ class Fluent::Plugin::Elb_LogInput < Fluent::Plugin::Input
 
     Signal.trap('INT') { shutdown }
 
+	refresh_aws_clients!
+
     if @use_sqs
       input
-      @sqs_client = sqs_client
       setup_sqs_timer
     else
       setup_input_timer
@@ -72,6 +73,12 @@ class Fluent::Plugin::Elb_LogInput < Fluent::Plugin::Input
   end
 
   private
+
+  def refresh_aws_clients!
+    log.debug "Refreshing AWS credentials"
+    @s3_client = s3_client
+    @sqs_client = sqs_client if @use_sqs    
+  end
 
   def shutdown
     log.debug "shutdown"
@@ -94,6 +101,7 @@ class Fluent::Plugin::Elb_LogInput < Fluent::Plugin::Input
       return unless @running
       timer_execute(:in_elb_log, @refresh_interval) do
 	if @running
+		  refresh_aws_clients!
     	  process_sqs
     	  log.debug "sleeping for #{@refresh_interval}"
     	else
@@ -110,6 +118,7 @@ class Fluent::Plugin::Elb_LogInput < Fluent::Plugin::Input
     if @running
       timer_execute(:in_elb_log, @refresh_interval) do
 	if @running
+			refresh_aws_clients!
     	    input
 	    log.debug "sleeping input for #{@refresh_interval}"
 	end
