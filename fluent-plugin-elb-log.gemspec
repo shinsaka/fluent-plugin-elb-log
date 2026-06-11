@@ -9,7 +9,7 @@ Gem::Specification.new do |spec|
   spec.email         = ["shinx1265@gmail.com"]
   spec.summary       = "Amazon ELB log input plugin"
   spec.description   = "Amazon ELB log input plugin for fluentd"
-  spec.homepage      = "https://github.com/jazzl0ver/fluent-plugin-elb-log"
+  spec.homepage      = "https://github.com/shinsaka/fluent-plugin-elb-log"
   spec.license       = "MIT"
 
   spec.files         = `git ls-files -z`.split("\x0")
